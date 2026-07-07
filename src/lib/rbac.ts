@@ -96,7 +96,7 @@ function normalizeSchoolRole(role: string | null | undefined): SchoolRoleKey | n
 
 export function assertTeacherAccount(auth: AuthLike): void {
   if (auth.account_type === "student") {
-    throw new Error("Forbidden: teacher account required");
+    throw new Error("Forbidden: teacher account is required");
   }
 }
 

@@ -3,6 +3,21 @@ import { poolQuery } from "@/lib/db";
 export type SchoolRoleKey = "teacher" | "school_admin" | "student";
 export type AccountType = "teacher" | "student";
 
+/** Human-readable permission catalog — single source for API + UI. */
+export const PERMISSION_LABELS: Record<string, string> = {
+  "content:read": "View quest content",
+  "session:run": "Run live Socratic sessions",
+  "journal:write": "Write observation journal entries",
+  "school_structure:read": "View classes, sections, and years",
+  "school_structure:write": "Manage classes, sections, and years",
+  "roster:manage": "Manage student roster",
+  "user:invite": "Invite staff via signup code",
+  "user:assign_role": "Change staff roles and access",
+  "school:admin": "Full school administration",
+  "quest:run": "Complete quests (student)",
+  "platform:*": "Platform-wide administration",
+};
+
 const ROLE_PERMISSIONS: Record<SchoolRoleKey | "platform_admin", string[]> = {
   teacher: [
     "content:read",
@@ -26,6 +41,45 @@ const ROLE_PERMISSIONS: Record<SchoolRoleKey | "platform_admin", string[]> = {
   platform_admin: ["platform:*"],
 };
 
+export type RoleDefinition = {
+  key: SchoolRoleKey;
+  label: string;
+  description: string;
+  permissions: { key: string; label: string }[];
+};
+
+export const ROLE_DEFINITIONS: RoleDefinition[] = [
+  {
+    key: "school_admin",
+    label: "School admin",
+    description:
+      "Full control over school setup, staff access, and student roster. Typically the principal or IT lead.",
+    permissions: ROLE_PERMISSIONS.school_admin.map((key) => ({
+      key,
+      label: PERMISSION_LABELS[key] ?? key,
+    })),
+  },
+  {
+    key: "teacher",
+    label: "Teacher",
+    description:
+      "Runs AI Periods, manages class structure, and views content. Cannot change other users' roles.",
+    permissions: ROLE_PERMISSIONS.teacher.map((key) => ({
+      key,
+      label: PERMISSION_LABELS[key] ?? key,
+    })),
+  },
+  {
+    key: "student",
+    label: "Student",
+    description: "Accesses assigned quests on a student device. No admin capabilities.",
+    permissions: ROLE_PERMISSIONS.student.map((key) => ({
+      key,
+      label: PERMISSION_LABELS[key] ?? key,
+    })),
+  },
+];
+
 export type AuthLike = {
   user_id: string;
   school_id: number | null;
@@ -36,7 +90,6 @@ export type AuthLike = {
 
 function normalizeSchoolRole(role: string | null | undefined): SchoolRoleKey | null {
   if (role === "teacher" || role === "school_admin" || role === "student") return role;
-  // Legacy rows may still carry "member"; treat it as teacher permissions.
   if (role === "member") return "teacher";
   return null;
 }
@@ -73,6 +126,10 @@ export function requirePermission(auth: AuthLike, resource: string, action: stri
   }
 }
 
+export function canManageAccess(auth: AuthLike): boolean {
+  return hasPermission(auth, "user", "assign_role") || hasPermission(auth, "roster", "manage");
+}
+
 /** Load school_role_key for the active school if not already on auth. */
 export async function hydrateSchoolRole(auth: AuthLike): Promise<AuthLike> {
   if (auth.school_role_key || !auth.school_id) return auth;
@@ -85,3 +142,6 @@ export async function hydrateSchoolRole(auth: AuthLike): Promise<AuthLike> {
     school_role_key: normalizeSchoolRole(rows[0]?.role_key ?? null) ?? "teacher",
   };
 }
+
+/** Staff roles assignable by school admins (not student). */
+export const ASSIGNABLE_STAFF_ROLES: SchoolRoleKey[] = ["teacher", "school_admin"];

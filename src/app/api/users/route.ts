@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { apiErrorResponse } from "@/lib/api-error";
 
-async function schoolMemberCount(
+/** Count staff (non-student) members — first staff signup becomes school_admin. */
+async function schoolStaffCount(
   client: import("pg").PoolClient,
   schoolId: number,
 ): Promise<number> {
@@ -12,7 +13,10 @@ async function schoolMemberCount(
     `SELECT COUNT(*)::int AS count
        FROM user_schools us
        JOIN users u ON u.user_id = us.user_id
-      WHERE us.school_id = $1 AND u.is_active = TRUE`,
+      WHERE us.school_id = $1
+        AND u.is_active = TRUE
+        AND u.account_type = 'teacher'
+        AND us.role_key IN ('teacher', 'school_admin')`,
     [schoolId],
   );
   return result.rows[0]?.count ?? 0;
@@ -44,8 +48,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Invalid or expired signup code" }, { status: 400 });
     }
     const school_id: number = schoolResult.rows[0].id;
-    const memberCount = await schoolMemberCount(client, school_id);
-    const role_key = memberCount === 0 ? "school_admin" : "teacher";
+    const staffCount = await schoolStaffCount(client, school_id);
+    const role_key = staffCount === 0 ? "school_admin" : "teacher";
 
     const existingUser = await client.query(
       "SELECT user_id, email, display_name, school_id FROM users WHERE email = $1 AND is_active = TRUE",
@@ -57,7 +61,11 @@ export async function POST(request: NextRequest) {
       await client.query(
         `INSERT INTO user_schools (user_id, school_id, role_key)
          VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, school_id) DO NOTHING`,
+         ON CONFLICT (user_id, school_id) DO UPDATE
+           SET role_key = CASE
+             WHEN $3 = 'school_admin' THEN EXCLUDED.role_key
+             ELSE user_schools.role_key
+           END`,
         [user.user_id, school_id, role_key],
       );
       await client.query(

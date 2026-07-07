@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Loader2,
   PlayCircle,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
@@ -21,9 +22,11 @@ const navItems: {
   icon: LucideIcon;
   match?: string;
   soon?: boolean;
+  adminOnly?: boolean;
 }[] = [
   { href: "/dashboard/home", label: "Dashboard", icon: LayoutDashboard, match: "/dashboard/home" },
   { href: "/dashboard/school", label: "School setup", icon: Building2 },
+  { href: "/dashboard/access", label: "People", icon: Shield, adminOnly: true },
   { href: "#", label: "Tutorials", icon: PlayCircle, soon: true },
   { href: "#", label: "Certification", icon: GraduationCap, soon: true },
   { href: "#", label: "Journal", icon: ClipboardList, soon: true },
@@ -110,7 +113,14 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
             </div>
 
             <nav className="flex flex-wrap gap-2">
-              {navItems.map(({ href, label, icon: Icon, match, soon }) => {
+              {navItems
+                .filter(
+                  (item) =>
+                    !item.adminOnly ||
+                    user.school_role_key === "school_admin" ||
+                    user.platform_role === "platform_admin",
+                )
+                .map(({ href, label, icon: Icon, match, soon }) => {
                 const active = !soon && (pathname === href || pathname === match);
                 const className = `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${navPillClass(active, soon)}`;
 

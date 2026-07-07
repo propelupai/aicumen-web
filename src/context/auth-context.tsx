@@ -21,8 +21,11 @@ import {
 interface AuthUser {
   firebaseUser: FirebaseUser;
   user_id?: string;
-  school_id: number;
+  school_id: number | null;
   role?: string | null;
+  school_role_key?: string | null;
+  account_type?: string | null;
+  platform_role?: string | null;
   display_name?: string;
   photo_url?: string | null;
   school_name?: string | null;
@@ -322,6 +325,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user_id: authUser.user_id,
           school_id: authUser.school_id,
           role: authUser.role ?? null,
+          school_role_key: authUser.school_role_key ?? null,
+          account_type: authUser.account_type ?? "teacher",
+          platform_role: authUser.platform_role ?? null,
           display_name: authUser.display_name,
           photo_url: authUser.photo_url ?? undefined,
           school_name: authUser.school_name ?? null,

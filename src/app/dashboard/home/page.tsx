@@ -1,52 +1,121 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import { QuestCard } from "@/components/quest-card";
+import { firstName, getTimeGreeting } from "@/lib/quest-preview";
+import type { ActivityListItem } from "@/lib/activities";
+import { Building2, Loader2 } from "lucide-react";
+
+type Overview = {
+  school_name: string | null;
+  academic_year: { id: number; label: string } | null;
+  class_count: number;
+  section_count: number;
+};
+
+type ActivitiesResponse = {
+  items: ActivityListItem[];
+  total: number;
+  chapter: { code: string; title: string; grade: number } | null;
+};
 
 export default function DashboardHome() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const displayName = user?.display_name || user?.firebaseUser.email?.split("@")[0] || "there";
+  const greeting = getTimeGreeting();
+  const name = firstName(displayName);
 
-  const displayName = user?.display_name || user?.firebaseUser.email || "there";
+  const { data: overview, isLoading: overviewLoading } = useQuery<Overview>({
+    queryKey: ["/api/school/overview"],
+    queryFn: async () => {
+      const res = await fetch("/api/school/overview", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load overview");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const {
+    data: activitiesData,
+    isLoading: activitiesLoading,
+    isError: activitiesError,
+  } = useQuery<ActivitiesResponse>({
+    queryKey: ["/api/activities"],
+    queryFn: async () => {
+      const res = await fetch("/api/activities", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load activities");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const activities = activitiesData?.items ?? [];
+  const chapter = activitiesData?.chapter;
+  const ready = !!overview?.academic_year && (overview?.section_count ?? 0) > 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-6">
-        <span className="text-xl font-bold tracking-tight">
-          <span className="bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent">
-            AICUMEN
-          </span>
-        </span>
-        <div className="flex items-center gap-4">
-          {user?.school_name && (
-            <span className="hidden text-sm text-slate-500 sm:inline">{user.school_name}</span>
-          )}
-          <button
-            type="button"
-            onClick={() => signOut()}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+    <div className="space-y-8">
+      <section>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          {greeting}, {name}!
+        </h1>
+      </section>
+
+      {!overviewLoading && !ready && (
+        <div className="rounded-xl border border-amber-200/70 bg-amber-50/40 px-5 py-4 text-sm text-amber-950">
+          Complete{" "}
+          <Link
+            href="/dashboard/school"
+            className="font-semibold text-teal-800 underline-offset-2 hover:underline"
           >
-            Sign out
-          </button>
+            school setup
+          </Link>{" "}
+          (academic year + sections) before running live sessions with your class.
         </div>
-      </header>
+      )}
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {displayName}.</h1>
-        <p className="mt-2 text-slate-600">
-          This is your AICUMEN home. Your innovation workspace will live here.
-        </p>
-
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {["My Projects", "Explore Ideas", "Resources"].map((title) => (
-            <div
-              key={title}
-              className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <h2 className="text-lg font-semibold">{title}</h2>
-              <p className="mt-1 text-sm text-slate-500">Coming soon.</p>
-            </div>
-          ))}
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+              {chapter ? chapter.title : "Published quests"}
+            </p>
+            {!activitiesLoading && activities.length > 0 && (
+              <p className="mt-1 text-sm text-slate-500">
+                {activities.length} quest{activities.length === 1 ? "" : "s"}
+                {chapter ? ` · Grade ${chapter.grade}` : ""}
+              </p>
+            )}
+          </div>
+          <Link
+            href="/dashboard/school"
+            className="inline-flex items-center gap-2 rounded-xl border border-teal-200/80 bg-teal-50/50 px-4 py-2.5 text-sm font-semibold text-teal-900 transition-colors hover:bg-teal-50"
+          >
+            <Building2 className="h-4 w-4" />
+            School setup
+          </Link>
         </div>
-      </main>
+
+        {activitiesLoading ? (
+          <div className="mt-8 flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-teal-700" />
+          </div>
+        ) : activitiesError ? (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            Could not load quests. Ensure content migrations have been run in Cloud SQL.
+          </p>
+        ) : activities.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">No published quests in the catalog yet.</p>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {activities.map((activity) => (
+              <QuestCard key={activity.id} activity={activity} disabled />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

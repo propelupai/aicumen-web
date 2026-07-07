@@ -13,9 +13,14 @@ export async function GET(request: NextRequest) {
     client = await pool.connect();
     const { rows } = await client.query(
       `SELECT u.user_id, u.role, u.school_id, u.display_name, u.photo_url,
+              COALESCE(u.account_type, 'teacher') AS account_type,
+              u.platform_role,
+              us.role_key AS school_role_key,
               s.name AS school_name
          FROM users u
          LEFT JOIN schools s ON s.id = u.school_id
+         LEFT JOIN user_schools us
+           ON us.user_id = u.user_id AND us.school_id = u.school_id
         WHERE u.user_id = $1
           AND u.is_active = TRUE`,
       [base.user_id],

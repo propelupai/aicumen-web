@@ -34,11 +34,16 @@ async function verifySessionMatchesSyncBody(
 export async function POST(request: NextRequest) {
   let client;
   try {
-    const { firebase_uid, email } = await request.json();
+    const { firebase_uid, email, display_name, photo_url } = await request.json();
 
     if (!firebase_uid || !email) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
+
+    const photoUrl =
+      typeof photo_url === "string" && photo_url.trim() ? photo_url.trim() : null;
+    const displayName =
+      typeof display_name === "string" && display_name.trim() ? display_name.trim() : null;
 
     const authErr = await verifySessionMatchesSyncBody(request, firebase_uid, email);
     if (authErr) return authErr;
@@ -58,16 +63,21 @@ export async function POST(request: NextRequest) {
 
     const user = rows[0];
 
-    // First sign-in for an email-preseeded row: stitch the Firebase UID onto it.
-    if (!user.firebase_uid) {
-      await client.query(
-        `UPDATE users SET firebase_uid = $1, updated_at = NOW() WHERE user_id = $2`,
-        [firebase_uid, user.user_id],
-      );
-      user.firebase_uid = firebase_uid;
-    }
+    const { rows: updated } = await client.query(
+      `UPDATE users
+          SET firebase_uid = COALESCE(firebase_uid, $1),
+              photo_url = CASE WHEN $2::text IS NOT NULL THEN $2 ELSE photo_url END,
+              display_name = CASE
+                WHEN display_name IS NULL OR BTRIM(display_name) = '' THEN COALESCE($3, display_name)
+                ELSE display_name
+              END,
+              updated_at = NOW()
+        WHERE user_id = $4
+        RETURNING *`,
+      [firebase_uid, photoUrl, displayName, user.user_id],
+    );
 
-    return NextResponse.json(user, { status: 200 });
+    return NextResponse.json(updated[0] ?? user, { status: 200 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.toLowerCase().includes("unauth")) {

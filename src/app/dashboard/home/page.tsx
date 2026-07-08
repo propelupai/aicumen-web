@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
 import { QuestCard } from "@/components/quest-card";
+import { CompletedWorkPanel } from "@/components/completed-work-panel";
 import { firstName, getTimeGreeting } from "@/lib/quest-preview";
 import type { ActivityListItem } from "@/lib/activities";
-import { Building2, Loader2, Search } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, Search, Sparkles } from "lucide-react";
+
+type HomeTab = "find" | "history";
 
 type Overview = {
   school_name: string | null;
@@ -23,6 +26,8 @@ type CatalogSubject = {
   name: string;
   grade_min: number;
   grade_max: number;
+  kind: "cbse_anchor";
+  has_published_quests: boolean;
 };
 
 type CatalogChapter = {
@@ -49,6 +54,7 @@ type TeacherSectionsResponse = {
 type ActivitiesResponse = {
   items: ActivityListItem[];
   total: number;
+  counts?: { cbse_chapter: number; ct_program: number };
   filters: {
     grade: number | null;
     subject_id: number | null;
@@ -75,6 +81,7 @@ export default function DashboardHome() {
   const name = firstName(displayName);
 
   const [sectionId, setSectionId] = useState<number | null>(null);
+  const [homeTab, setHomeTab] = useState<HomeTab>("find");
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [chapterId, setChapterId] = useState<number | null>(null);
   const [topicQuery, setTopicQuery] = useState("");
@@ -184,8 +191,8 @@ export default function DashboardHome() {
           {greeting}, {name}!
         </h1>
         <p className="mt-2 text-sm text-slate-600">
-          What did you teach today? Pick subject and chapter — we&apos;ll surface matching Socratic
-          quests for the last few minutes of class.
+          What did you teach in class today? Pick the lesson subject and chapter — we&apos;ll
+          surface Socratic CT quests anchored to that lesson.
         </p>
       </section>
 
@@ -202,6 +209,70 @@ export default function DashboardHome() {
         </div>
       )}
 
+      {sections.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
+          <label className="block">
+            <span className="text-xs font-semibold text-slate-600">Class section</span>
+            {teacherSections?.source === "assigned" && (
+              <span className="ml-2 text-xs font-normal text-slate-400">· your assigned sections</span>
+            )}
+            <select
+              value={sectionId ?? ""}
+              onChange={(e) => {
+                const id = parseInt(e.target.value, 10);
+                setSectionId(Number.isInteger(id) ? id : null);
+                setChapterId(null);
+              }}
+              className="mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+            >
+              {sections.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.display_name} · Grade {s.grade}
+                </option>
+              ))}
+            </select>
+          </label>
+        </section>
+      )}
+
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
+        <button
+          type="button"
+          onClick={() => setHomeTab("find")}
+          className={`inline-flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+            homeTab === "find"
+              ? "border border-b-0 border-slate-200 bg-white text-teal-900"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          }`}
+        >
+          <Sparkles className="h-4 w-4" />
+          Find quests
+        </button>
+        <button
+          type="button"
+          onClick={() => setHomeTab("history")}
+          className={`inline-flex items-center gap-2 rounded-t-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+            homeTab === "history"
+              ? "border border-b-0 border-slate-200 bg-white text-teal-900"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+          }`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          Completed work
+        </button>
+      </div>
+
+      {homeTab === "history" ? (
+        <CompletedWorkPanel
+          sectionId={sectionId}
+          grade={grade}
+          subjects={subjects}
+          subjectsLoading={subjectsLoading}
+          ready={ready}
+          onRun={handleRun}
+        />
+      ) : (
+        <>
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -223,35 +294,17 @@ export default function DashboardHome() {
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="space-y-4">
-            {sections.length > 0 && (
-              <label className="block">
-                <span className="text-xs font-semibold text-slate-600">Class section</span>
-                <select
-                  value={sectionId ?? ""}
-                  onChange={(e) => {
-                    const id = parseInt(e.target.value, 10);
-                    setSectionId(Number.isInteger(id) ? id : null);
-                    setChapterId(null);
-                  }}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
-                >
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.display_name} · Grade {s.grade}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
             <div>
-              <span className="text-xs font-semibold text-slate-600">Subject</span>
+              <span className="text-xs font-semibold text-slate-600">Lesson subject (CBSE)</span>
               {subjectsLoading ? (
                 <div className="mt-2 flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
                 </div>
               ) : subjects.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-500">No published subjects yet.</p>
+                <p className="mt-2 text-sm text-slate-500">
+                  No lesson subjects configured yet. Run migration 005 for Maths, English, Science,
+                  and Social Studies.
+                </p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {subjects.map((s) => (
@@ -360,8 +413,8 @@ export default function DashboardHome() {
               {grade && !selectedChapter ? ` · Grade ${grade}` : ""}
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Filtered to your school&apos;s enabled content
-              {sectionId ? " for this section" : ""}. Not limited to quests you authored.
+              Quests are Computational Thinking activities mapped to your lesson — not a separate
+              timetable subject. Search a chapter or topic to find matches.
             </p>
           </div>
         </div>
@@ -376,23 +429,35 @@ export default function DashboardHome() {
           </p>
         ) : activities.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">
-            No quests match this subject
+            No quests yet for this {selectedSubject?.name ?? "subject"}
             {chapterSearch ? ` and topic “${chapterSearch}”` : ""}
-            {grade ? ` for grade ${grade}` : ""}. Try another chapter or subject.
+            {grade ? ` (grade ${grade})` : ""}. Try searching a topic — e.g. &quot;pattern&quot; or
+            &quot;rangoli&quot; — to find CT quests from the problem bank.
           </p>
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {activities.map((activity) => (
-              <QuestCard
-                key={activity.id}
-                activity={activity}
-                disabled={!ready}
-                onRun={() => handleRun(activity.id)}
-              />
-            ))}
-          </div>
+          <>
+            {(activitiesData?.counts?.ct_program ?? 0) > 0 &&
+              (activitiesData?.counts?.cbse_chapter ?? 0) === 0 && (
+                <p className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900">
+                  Showing CT program quests matched to your topic. Integrated-book sparks for{" "}
+                  {selectedSubject?.name} will appear here once those chapters are ingested.
+                </p>
+              )}
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {activities.map((activity) => (
+                <QuestCard
+                  key={activity.id}
+                  activity={activity}
+                  disabled={!ready}
+                  onRun={() => handleRun(activity.id)}
+                />
+              ))}
+            </div>
+          </>
         )}
       </section>
+        </>
+      )}
     </div>
   );
 }

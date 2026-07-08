@@ -6,7 +6,7 @@ import { getAuthUser } from "@/lib/getAuthUser";
 import { apiErrorResponse } from "@/lib/api-error";
 import { assertTeacherAccount } from "@/lib/rbac";
 
-/** Chapters with published quests — filter by subject and grade. */
+/** CBSE anchor chapters for lesson mapping — with or without published quests yet. */
 export async function GET(request: NextRequest) {
   let client;
   try {
@@ -21,10 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "subject_id is required" }, { status: 400 });
     }
 
-    const conditions = [
-      "c.subject_id = $1",
-      "EXISTS (SELECT 1 FROM activities a WHERE a.chapter_id = c.id AND a.status = 'published')",
-    ];
+    const conditions = ["c.subject_id = $1"];
     const values: unknown[] = [subjectId];
     let idx = 2;
 

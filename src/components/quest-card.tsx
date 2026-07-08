@@ -31,14 +31,36 @@ function stars(n: number) {
   return "★".repeat(clamped) + "☆".repeat(3 - clamped);
 }
 
+function formatCompletedDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: d.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+  });
+}
+
 type QuestCardProps = {
   activity: ActivityListItem;
   disabled?: boolean;
   onRun?: () => void;
+  runLabel?: string;
+  completedAt?: string | null;
+  progressStatus?: string;
 };
 
-export function QuestCard({ activity, disabled = true, onRun }: QuestCardProps) {
+export function QuestCard({
+  activity,
+  disabled = true,
+  onRun,
+  runLabel,
+  completedAt,
+  progressStatus,
+}: QuestCardProps) {
   const accent = accentMap[activity.accent] ?? accentMap.teal;
+  const isCompleted = progressStatus === "completed" || !!completedAt;
+  const buttonLabel = runLabel ?? (disabled ? "Soon" : "Run live →");
 
   return (
     <article
@@ -52,9 +74,24 @@ export function QuestCard({ activity, disabled = true, onRun }: QuestCardProps) 
         >
           {activity.quest_code}
         </span>
-        <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200">
-          {activity.skill}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          {isCompleted && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+              Done
+            </span>
+          )}
+          {progressStatus === "in_progress" && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900 ring-1 ring-amber-200">
+              In progress
+            </span>
+          )}
+          <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200">
+            {activity.source_type_label ??
+              (activity.activity_type
+                ? activity.activity_type.replace(/_/g, " ")
+                : activity.skill)}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 flex flex-1 flex-col items-center text-center">
@@ -69,7 +106,9 @@ export function QuestCard({ activity, disabled = true, onRun }: QuestCardProps) 
 
       <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
         <span className="text-xs text-slate-500">
-          {activity.coach_step_count} Socratic prompts
+          {completedAt
+            ? `Completed ${formatCompletedDate(completedAt)}`
+            : `${activity.coach_step_count} Socratic prompts`}
         </span>
         <button
           type="button"
@@ -77,7 +116,7 @@ export function QuestCard({ activity, disabled = true, onRun }: QuestCardProps) 
           onClick={onRun}
           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${accent.button}`}
         >
-          {disabled ? "Soon" : "Run live →"}
+          {buttonLabel}
         </button>
       </div>
     </article>

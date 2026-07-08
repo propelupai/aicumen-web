@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -45,6 +45,7 @@ function formatAnswerSpec(spec: Record<string, unknown> | null): string | null {
 export default function LiveSessionPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const activityId = parseInt(String(params.activityId ?? ""), 10);
 
@@ -89,6 +90,11 @@ export default function LiveSessionPage() {
         body: JSON.stringify({ activity_id: activityId, status }),
       });
       if (!res.ok) throw new Error("Failed to save progress");
+    },
+    onSuccess: () => {
+      if (!sectionId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/sections/${sectionId}/progress`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sections/completed", sectionId] });
     },
   });
 

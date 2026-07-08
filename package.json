@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "ingest:grade6-excel": "python scripts/ingest_grade6_excel.py"
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "^1.11.2",

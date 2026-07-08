@@ -25,6 +25,10 @@ export type ActivityListItem = {
   grade: number;
   chapter_title: string;
   chapter_code: string;
+  anchor_curriculum?: string | null;
+  subject_id?: number;
+  subject_slug?: string;
+  subject_name?: string;
 };
 
 export type QuestionRow = {

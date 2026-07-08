@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aicumen.propelup.ai/schemas/curriculum-ingestion-output.json",
+  "title": "CurriculumIngestionOutput",
+  "description": "Normalized output from the curriculum ingestion worker. One object per quest/spark extracted from teacher guide + student workbook. Maps directly to activities + questions tables (see migrations/003_seed_grade3_quests.sql).",
+  "type": "object",
+  "required": ["activity", "questions"],
+  "properties": {
+    "activity": {
+      "type": "object",
+      "required": ["slug", "title", "activity_type", "sort_order", "ct_skills", "status"],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "activity_type": {
+          "enum": ["quest", "warm_up", "ct_challenge", "practice", "prompt_lab", "debug_it", "mini_lab", "project"]
+        },
+        "source_type_label": { "type": ["string", "null"] },
+        "sort_order": { "type": "integer", "minimum": 0 },
+        "estimated_minutes": { "type": "integer", "minimum": 5, "maximum": 90, "default": 15 },
+        "ct_skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "ai_concept": { "type": ["string", "null"] },
+        "status": { "enum": ["draft", "review"], "default": "review" },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "quest_code": { "type": "string" },
+            "theme": { "type": "string" },
+            "difficulty": { "enum": ["Easy", "Medium", "Hard"] },
+            "stars": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "emoji": { "type": "string" },
+            "accent": { "enum": ["teal", "sky", "amber", "slate"] }
+          }
+        }
+      }
+    },
+    "chapter": {
+      "type": "object",
+      "description": "Chapter linkage if creating alongside activity",
+      "properties": {
+        "subject_slug": { "type": "string" },
+        "grade": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "chapter_code": { "type": "string" },
+        "title": { "type": "string" }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "required": ["role", "sort_order", "stem"],
+      "properties": {
+        "role": {
+          "enum": ["stem", "coach_step", "extend", "workbook_only", "sub_part"]
+        },
+        "sort_order": { "type": "integer", "minimum": 0 },
+        "label": { "type": ["string", "null"], "description": "Coach step name, e.g. Notice & Wonder" },
+        "stem": { "type": "string", "minLength": 1 },
+        "context": { "type": "object", "default": {} },
+        "hint": { "type": ["string", "null"] },
+        "delivery": {
+          "type": ["object", "null"],
+          "description": "Stem-only board aids: draw, table, clap, etc.",
+          "additionalProperties": { "type": "string" }
+        },
+        "answer_spec": {
+          "type": ["object", "null"],
+          "properties": {
+            "answer_type": { "enum": ["numeric", "short_text", "open_rubric", "multiple_choice"] },
+            "body": { "type": "object" }
+          }
+        },
+        "teacher_notes": {
+          "type": ["string", "null"],
+          "description": "Private facilitation guidance for coach_step rows"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "coach_step" } } },
+          "then": { "required": ["label"] }
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "activity": {
+        "slug": "diya-rangoli-stars",
+        "title": "Diya's Rangoli Stars",
+        "activity_type": "quest",
+        "source_type_label": "Grade 3 Quest",
+        "sort_order": 1,
+        "estimated_minutes": 15,
+        "ct_skills": ["pattern_recognition"],
+        "ai_concept": "Recommendation systems and model limits",
+        "status": "review",
+        "metadata": {
+          "quest_code": "L3-P1",
+          "theme": "Diwali Festival",
+          "difficulty": "Medium",
+          "stars": 3,
+          "emoji": "🪔",
+          "accent": "teal"
+        }
+      },
+      "chapter": {
+        "subject_slug": "ct",
+        "grade": 3,
+        "chapter_code": "L3",
+        "title": "Level 3 · Pattern Finder"
+      },
+      "questions": [
+        {
+          "role": "stem",
+          "sort_order": 0,
+          "stem": "Diya places stars in her rangoli across 5 days: 1, 3, 6, 10, 15. There's a hidden rule in the gaps between the numbers. How many stars will she place on day 6?",
+          "context": { "theme": "Diwali Festival", "sequence": [1, 3, 6, 10, 15] },
+          "hint": "Look at the gaps: 2, 3, 4, 5…",
+          "delivery": {
+            "draw": "Draw a growing rangoli. Start with 1 star, add 2 to get 3, add 3 to get 6…",
+            "table": "Write the gaps under each pair: 2, 3, 4, 5…"
+          },
+          "answer_spec": {
+            "answer_type": "numeric",
+            "body": { "value": "21", "unit": "stars" }
+          }
+        },
+        {
+          "role": "coach_step",
+          "sort_order": 1,
+          "label": "Notice & Wonder",
+          "stem": "What do you notice about these numbers? Don't answer yet — just look.",
+          "hint": "Look at two numbers next to each other. What's 3 minus 1?",
+          "teacher_notes": "Collect 3–4 observations before moving on. Don't say 21 yet."
+        },
+        {
+          "role": "coach_step",
+          "sort_order": 2,
+          "label": "Find the Gaps",
+          "stem": "How much bigger is each number than the one before it?",
+          "hint": "What's 3 minus 1? Now 6 minus 3?",
+          "teacher_notes": "Have them say each gap aloud: 2, 3, 4, 5."
+        },
+        {
+          "role": "extend",
+          "sort_order": 6,
+          "stem": "Predict day 8 without writing every term. What shortcut did you use?",
+          "answer_spec": {
+            "answer_type": "numeric",
+            "body": { "value": "36" }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,8 @@ export type AccountType = "teacher" | "student";
 /** Human-readable permission catalog — single source for API + UI. */
 export const PERMISSION_LABELS: Record<string, string> = {
   "content:read": "View quest content",
+  "content:manage": "Manage global curriculum catalog",
+  "content:curate": "Curate curriculum for this school",
   "session:run": "Run live Socratic sessions",
   "journal:write": "Write observation journal entries",
   "school_structure:read": "View classes, sections, and years",
@@ -28,6 +30,7 @@ const ROLE_PERMISSIONS: Record<SchoolRoleKey | "platform_admin", string[]> = {
   ],
   school_admin: [
     "content:read",
+    "content:curate",
     "session:run",
     "journal:write",
     "school_structure:read",
@@ -128,6 +131,14 @@ export function requirePermission(auth: AuthLike, resource: string, action: stri
 
 export function canManageAccess(auth: AuthLike): boolean {
   return hasPermission(auth, "user", "assign_role") || hasPermission(auth, "roster", "manage");
+}
+
+export function canManageContent(auth: AuthLike): boolean {
+  return hasPermission(auth, "content", "manage");
+}
+
+export function canCurateContent(auth: AuthLike): boolean {
+  return hasPermission(auth, "content", "curate") || canManageContent(auth);
 }
 
 /** Load school_role_key for the active school if not already on auth. */

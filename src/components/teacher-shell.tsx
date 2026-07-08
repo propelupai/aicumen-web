@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
+  BookOpen,
   Building2,
+  ChevronDown,
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
@@ -21,15 +24,19 @@ const navItems: {
   label: string;
   icon: LucideIcon;
   match?: string;
-  soon?: boolean;
   adminOnly?: boolean;
+  contentAccess?: boolean;
 }[] = [
   { href: "/dashboard/home", label: "Dashboard", icon: LayoutDashboard, match: "/dashboard/home" },
-  { href: "/dashboard/school", label: "School setup", icon: Building2 },
+  { href: "/dashboard/school", label: "School", icon: Building2 },
   { href: "/dashboard/access", label: "People", icon: Shield, adminOnly: true },
-  { href: "#", label: "Tutorials", icon: PlayCircle, soon: true },
-  { href: "#", label: "Certification", icon: GraduationCap, soon: true },
-  { href: "#", label: "Journal", icon: ClipboardList, soon: true },
+  { href: "/dashboard/content", label: "Content", icon: BookOpen, contentAccess: true },
+];
+
+const comingSoonItems: { label: string; icon: LucideIcon; hint: string }[] = [
+  { label: "Tutorials", icon: PlayCircle, hint: "Guided walkthroughs" },
+  { label: "Certification", icon: GraduationCap, hint: "Earn your AI Period badge" },
+  { label: "Journal", icon: ClipboardList, hint: "Class observation notes" },
 ];
 
 type MySchool = {
@@ -39,13 +46,86 @@ type MySchool = {
   is_active: boolean;
 };
 
-function navPillClass(active: boolean, soon?: boolean) {
-  if (soon) {
-    return "border border-dashed border-slate-200 text-slate-400 cursor-default";
-  }
+function navPillClass(active: boolean) {
   return active
     ? "border border-teal-700 bg-teal-700 text-white shadow-sm"
     : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50";
+}
+
+function visibleNavItems(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
+  return navItems.filter((item) => {
+    if (item.adminOnly) {
+      return user.school_role_key === "school_admin" || user.platform_role === "platform_admin";
+    }
+    if (item.contentAccess) {
+      return user.platform_role === "platform_admin" || user.school_role_key === "school_admin";
+    }
+    return true;
+  });
+}
+
+function ComingSoonMenu() {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 sm:text-sm"
+      >
+        More
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+0.375rem)] z-50 w-56 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-black/5"
+        >
+          <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+            Coming soon
+          </p>
+          {comingSoonItems.map(({ label, icon: Icon, hint }) => (
+            <div
+              key={label}
+              role="menuitem"
+              aria-disabled="true"
+              className="flex items-start gap-2.5 px-3 py-2 text-slate-500"
+            >
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-700">{label}</p>
+                <p className="text-xs leading-snug text-slate-500">{hint}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function TeacherShell({ children }: { children: React.ReactNode }) {
@@ -88,95 +168,90 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
   }
 
   const displayName = user.display_name || user.firebaseUser.email?.split("@")[0] || "Teacher";
+  const roleLabel =
+    user.platform_role === "platform_admin"
+      ? "Platform admin"
+      : user.school_role_key === "school_admin"
+        ? "School admin"
+        : "Teacher";
+  const items = visibleNavItems(user);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#f4f6f8] text-slate-900">
       <header className="relative z-10 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          {/* Row 1: logo + context + nav */}
-          <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-              <Link href="/dashboard/home" className="inline-flex items-baseline gap-2 transition-opacity hover:opacity-90">
+          <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+              <Link
+                href="/dashboard/home"
+                className="inline-flex shrink-0 items-baseline gap-1.5 transition-opacity hover:opacity-90"
+              >
                 <span className="text-lg font-bold tracking-tight text-teal-800">AICUMEN</span>
-                <span className="text-xs text-slate-400">by PropelUpAI</span>
+                <span className="hidden text-xs text-slate-400 sm:inline">by PropelUpAI</span>
               </Link>
-              <div className="hidden h-8 w-px bg-slate-200 sm:block" aria-hidden />
-              <p className="text-sm text-slate-500">
-                <span className="font-medium text-slate-700">Teacher Portal</span>
-                {user.school_name && (
-                  <>
-                    <span className="mx-1.5 text-slate-300">·</span>
-                    <span>{user.school_name}</span>
-                  </>
-                )}
-              </p>
+              {user.school_name && (
+                <>
+                  <div className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden />
+                  <p className="hidden truncate text-sm text-slate-500 sm:block">
+                    {user.school_name}
+                  </p>
+                </>
+              )}
             </div>
 
-            <nav className="flex flex-wrap gap-2">
-              {navItems
-                .filter(
-                  (item) =>
-                    !item.adminOnly ||
-                    user.school_role_key === "school_admin" ||
-                    user.platform_role === "platform_admin",
-                )
-                .map(({ href, label, icon: Icon, match, soon }) => {
-                const active = !soon && (pathname === href || pathname === match);
-                const className = `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${navPillClass(active, soon)}`;
-
-                if (soon) {
+            <nav
+              aria-label="Main"
+              className="flex min-w-0 items-center gap-1.5 lg:flex-1 lg:justify-center"
+            >
+              <div className="flex min-w-0 flex-nowrap gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {items.map(({ href, label, icon: Icon, match }) => {
+                  const active = pathname === href || pathname === match;
                   return (
-                    <span key={label} className={className} title="Coming soon">
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${navPillClass(active)}`}
+                    >
                       <Icon className="h-3.5 w-3.5" />
                       {label}
-                    </span>
+                    </Link>
                   );
-                }
-
-                return (
-                  <Link key={href} href={href} className={className}>
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* Row 2: user chip */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 py-3">
-            <div className="flex items-center gap-3">
-              <UserAvatar name={displayName} photoUrl={user.photo_url} />
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-                <p className="text-xs text-slate-500">
-                  {user.school_role_key === "school_admin" ? "School admin" : "Teacher"}
-                </p>
+                })}
               </div>
-            </div>
+              <ComingSoonMenu />
+            </nav>
 
-            <div className="flex items-center gap-2">
-              {showSchoolSwitcher && (
-                <select
-                  value={user.school_id ?? ""}
-                  onChange={(e) => handleSwitchSchool(parseInt(e.target.value, 10))}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                  aria-label="Switch school"
+            <div className="flex items-center justify-between gap-2 lg:shrink-0 lg:justify-end">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <UserAvatar name={displayName} photoUrl={user.photo_url} />
+                <div className="min-w-0 hidden sm:block">
+                  <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+                  <p className="text-xs text-slate-500">{roleLabel}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {showSchoolSwitcher && (
+                  <select
+                    value={user.school_id ?? ""}
+                    onChange={(e) => handleSwitchSchool(parseInt(e.target.value, 10))}
+                    className="max-w-[9rem] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+                    aria-label="Switch school"
+                  >
+                    {mySchools.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
                 >
-                  {mySchools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                onClick={() => signOut()}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-              >
-                Sign out
-              </button>
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         </div>

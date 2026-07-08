@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
+import { formatUserRoleLabel } from "@/lib/user-profile";
 
 const navItems: {
   href: string;
@@ -168,12 +169,8 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
   }
 
   const displayName = user.display_name || user.firebaseUser.email?.split("@")[0] || "Teacher";
-  const roleLabel =
-    user.platform_role === "platform_admin"
-      ? "Platform admin"
-      : user.school_role_key === "school_admin"
-        ? "School admin"
-        : "Teacher";
+  const roleLabel = formatUserRoleLabel(user);
+  const profileActive = pathname === "/dashboard/profile";
   const items = visibleNavItems(user);
 
   return (
@@ -222,13 +219,19 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center justify-between gap-2 lg:shrink-0 lg:justify-end">
-              <div className="flex min-w-0 items-center gap-2.5">
+              <Link
+                href="/dashboard/profile"
+                className={`flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1 transition-colors ${
+                  profileActive ? "bg-teal-50 ring-1 ring-teal-200" : "hover:bg-slate-50"
+                }`}
+                aria-current={profileActive ? "page" : undefined}
+              >
                 <UserAvatar name={displayName} photoUrl={user.photo_url} />
                 <div className="min-w-0 hidden sm:block">
                   <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
                   <p className="text-xs text-slate-500">{roleLabel}</p>
                 </div>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 {showSchoolSwitcher && (
                   <select

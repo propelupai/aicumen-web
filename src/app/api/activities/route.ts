@@ -11,6 +11,12 @@ import {
   parseActivityMetadata,
 } from "@/lib/activities";
 import { CT_PROGRAM_SLUG } from "@/lib/subjects";
+import {
+  activityTopicMatchSql,
+  activityTopicRankSql,
+  bindTopicSearch,
+  ctAnchorMatchSql,
+} from "@/lib/topic-search";
 
 type ActivityRow = {
   id: number;
@@ -115,6 +121,7 @@ export async function GET(request: NextRequest) {
       const conditions = ["a.status = 'published'", `s.slug <> $1`];
       const values: unknown[] = [CT_PROGRAM_SLUG];
       let idx = 2;
+      let rankIdx: number | null = null;
 
       if (grade && Number.isInteger(grade)) {
         conditions.push(`c.grade = $${idx++}`);
@@ -129,18 +136,19 @@ export async function GET(request: NextRequest) {
         values.push(subjectId);
       }
       if (q) {
-        conditions.push(
-          `(a.title ILIKE $${idx} OR a.external_id ILIKE $${idx} OR c.title ILIKE $${idx}
-            OR c.chapter_code ILIKE $${idx} OR a.metadata->>'theme' ILIKE $${idx}
-            OR a.source_type_label ILIKE $${idx})`,
-        );
-        values.push(`%${q}%`);
-        idx++;
+        const binds = bindTopicSearch(values, q, idx);
+        rankIdx = binds.rawIdx;
+        conditions.push(activityTopicMatchSql("a", "c", binds.patternIdx, binds.rawIdx));
+        idx = binds.rawIdx + 1;
       }
 
       const school = buildSchoolClause(idx);
       conditions.push(...school.conditions);
       values.push(...school.values);
+
+      const orderBy = q && rankIdx != null
+        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, c.chapter_code, a.sort_order, a.id`
+        : "c.chapter_code, a.sort_order, a.id";
 
       const result = await client!.query(
         `SELECT a.id, a.slug, a.title, a.activity_type, a.enrichment_status,
@@ -155,7 +163,7 @@ export async function GET(request: NextRequest) {
            JOIN subjects s ON s.id = c.subject_id
            ${school.join}
           WHERE ${conditions.join(" AND ")}
-          ORDER BY c.chapter_code, a.sort_order, a.id`,
+          ORDER BY ${orderBy}`,
         values,
       );
 
@@ -168,6 +176,7 @@ export async function GET(request: NextRequest) {
       const conditions = ["a.status = 'published'", `s.slug = $1`];
       const values: unknown[] = [CT_PROGRAM_SLUG];
       let idx = 2;
+      let rankIdx: number | null = null;
 
       if (grade && Number.isInteger(grade)) {
         conditions.push(`c.grade = $${idx++}`);
@@ -175,22 +184,54 @@ export async function GET(request: NextRequest) {
       }
 
       const topicParts: string[] = [];
+      let searchBinds: { patternIdx: number; rawIdx: number } | null = null;
+
       if (q) {
+        searchBinds = bindTopicSearch(values, q, idx);
+        rankIdx = searchBinds.rawIdx;
         topicParts.push(
-          `(a.title ILIKE $${idx} OR c.title ILIKE $${idx} OR a.metadata->>'theme' ILIKE $${idx})`,
+          activityTopicMatchSql("a", "c", searchBinds.patternIdx, searchBinds.rawIdx),
         );
-        values.push(`%${q}%`);
-        idx++;
+        idx = searchBinds.rawIdx + 1;
+
+        if (subjectId && Number.isInteger(subjectId)) {
+          topicParts.push(
+            `EXISTS (
+               SELECT 1 FROM activity_cbse_anchors aca
+              WHERE aca.activity_id = a.id
+                AND aca.subject_id = $${idx}
+                AND (
+                  EXISTS (
+                    SELECT 1 FROM unnest(COALESCE(aca.topic_keywords, '{}')) AS akw
+                    WHERE akw ILIKE $${searchBinds.patternIdx}
+                       OR similarity(akw, $${searchBinds.rawIdx}) > 0.25
+                  )
+                  OR similarity(aca.chapter_title, $${searchBinds.rawIdx}) > 0.2
+                )
+             )`,
+          );
+          values.push(subjectId);
+          idx++;
+        }
       }
       if (chapterId && Number.isInteger(chapterId)) {
-        topicParts.push(
-          `EXISTS (
-             SELECT 1 FROM chapters anchor_ch
-            WHERE anchor_ch.id = $${idx}
-              AND (c.title ILIKE '%' || anchor_ch.title || '%'
-                   OR a.metadata->>'theme' ILIKE '%' || anchor_ch.title || '%')
-           )`,
-        );
+        if (q && searchBinds) {
+          topicParts.push(
+            ctAnchorMatchSql("a", idx, searchBinds.patternIdx, searchBinds.rawIdx),
+          );
+        } else {
+          topicParts.push(
+            `EXISTS (
+               SELECT 1 FROM chapters anchor_ch
+              WHERE anchor_ch.id = $${idx}
+                AND (
+                  c.title ILIKE '%' || anchor_ch.title || '%'
+                  OR a.metadata->>'theme' ILIKE '%' || anchor_ch.title || '%'
+                  OR anchor_ch.title ILIKE '%' || c.title || '%'
+                )
+             )`,
+          );
+        }
         values.push(chapterId);
         idx++;
       }
@@ -201,6 +242,10 @@ export async function GET(request: NextRequest) {
       const school = buildSchoolClause(idx);
       conditions.push(...school.conditions);
       values.push(...school.values);
+
+      const orderBy = q && rankIdx != null
+        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, a.sort_order, a.id`
+        : "a.sort_order, a.id";
 
       const result = await client!.query(
         `SELECT a.id, a.slug, a.title, a.activity_type, a.enrichment_status,
@@ -215,7 +260,7 @@ export async function GET(request: NextRequest) {
            JOIN subjects s ON s.id = c.subject_id
            ${school.join}
           WHERE ${conditions.join(" AND ")}
-          ORDER BY a.sort_order, a.id`,
+          ORDER BY ${orderBy}`,
         values,
       );
 
@@ -249,6 +294,7 @@ export async function GET(request: NextRequest) {
           section_id: sectionId ?? null,
           q: q || null,
           anchor_subject_slug: anchorSubjectSlug,
+          fuzzy: !!q,
         },
         chapter: first
           ? {

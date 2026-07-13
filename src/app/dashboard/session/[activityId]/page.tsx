@@ -16,6 +16,7 @@ import {
   MessageCircle,
   CheckCircle2,
   Monitor,
+  ShieldCheck,
 } from "lucide-react";
 import type { ActivityDetail } from "@/lib/activities";
 import {
@@ -526,6 +527,32 @@ export default function LiveSessionPage() {
             <p className="mt-4 text-xs text-slate-500">
               AI link: <span className="text-slate-700">{activity.ai_concept}</span>
             </p>
+          )}
+
+          {(activity.mandates?.length ?? 0) > 0 && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <ShieldCheck className="h-3.5 w-3.5 text-teal-700" />
+                CBSE handbook mandate
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {activity.mandates!.map((m) => (
+                  <li key={`${m.grade}-${m.code}`} className="flex items-start gap-2 text-xs">
+                    <span className="mt-0.5 shrink-0 rounded bg-teal-100 px-1.5 py-0.5 font-bold text-teal-800">
+                      {m.code}
+                    </span>
+                    <span className="text-slate-700">
+                      {m.handbook_item}
+                      {m.unit ? <span className="text-slate-400"> · {m.unit}</span> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Running this quest contributes to the Grade {activity.grade} AI handbook coverage
+                above.
+              </p>
+            </div>
           )}
 
           <div className="mt-auto flex flex-wrap gap-2 pt-6">

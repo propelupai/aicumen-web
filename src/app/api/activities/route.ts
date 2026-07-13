@@ -7,11 +7,14 @@ import { apiErrorResponse } from "@/lib/api-error";
 import { assertTeacherAccount } from "@/lib/rbac";
 import {
   type ActivityListItem,
+  type ActivityMandate,
   metadataToListFields,
   parseActivityMetadata,
 } from "@/lib/activities";
 import { CT_PROGRAM_SLUG } from "@/lib/subjects";
 import {
+  activityMandateMatchSql,
+  activityMandatesJsonSql,
   activityTopicMatchSql,
   activityTopicRankSql,
   bindTopicSearch,
@@ -38,6 +41,7 @@ type ActivityRow = {
   subject_name: string;
   coach_step_count: number;
   chapter_dependent: boolean;
+  mandates: ActivityMandate[] | null;
 };
 
 function mapActivityRow(row: ActivityRow): ActivityListItem {
@@ -62,6 +66,7 @@ function mapActivityRow(row: ActivityRow): ActivityListItem {
     enrichment_status: row.enrichment_status,
     chapter_dependent: row.chapter_dependent,
     source_type_label: row.source_type_label,
+    mandates: row.mandates ?? [],
   };
 }
 
@@ -82,6 +87,7 @@ export async function GET(request: NextRequest) {
     const subjectIdParam = request.nextUrl.searchParams.get("subject_id");
     const sectionIdParam = request.nextUrl.searchParams.get("section_id");
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+    const mandateCode = request.nextUrl.searchParams.get("mandate_code")?.trim() || null;
 
     const grade = gradeParam ? parseInt(gradeParam, 10) : null;
     const chapterId = chapterIdParam ? parseInt(chapterIdParam, 10) : null;
@@ -135,10 +141,27 @@ export async function GET(request: NextRequest) {
         conditions.push(`c.subject_id = $${idx++}`);
         values.push(subjectId);
       }
+      if (mandateCode) {
+        const parts = [`acm.mandate_code = $${idx}`];
+        values.push(mandateCode);
+        idx++;
+        if (grade && Number.isInteger(grade)) {
+          parts.push(`acm.mandate_grade = $${idx}`);
+          values.push(grade);
+          idx++;
+        }
+        conditions.push(
+          `EXISTS (SELECT 1 FROM activity_cbse_mandates acm
+                    WHERE acm.activity_id = a.id AND ${parts.join(" AND ")})`,
+        );
+      }
       if (q) {
         const binds = bindTopicSearch(values, q, idx);
         rankIdx = binds.rawIdx;
-        conditions.push(activityTopicMatchSql("a", "c", binds.patternIdx, binds.rawIdx));
+        conditions.push(
+          `(${activityTopicMatchSql("a", "c", binds.patternIdx, binds.rawIdx)}
+            OR ${activityMandateMatchSql("a", binds.patternIdx)})`,
+        );
         idx = binds.rawIdx + 1;
       }
 
@@ -157,7 +180,8 @@ export async function GET(request: NextRequest) {
                 c.grade, c.chapter_code, c.title AS chapter_title, c.anchor_curriculum,
                 s.id AS subject_id, s.slug AS subject_slug, s.name AS subject_name,
                 (SELECT COUNT(*)::int FROM questions qn
-                  WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count
+                  WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count,
+                ${activityMandatesJsonSql("a")} AS mandates
            FROM activities a
            JOIN chapters c ON c.id = a.chapter_id
            JOIN subjects s ON s.id = c.subject_id
@@ -182,6 +206,20 @@ export async function GET(request: NextRequest) {
         conditions.push(`c.grade = $${idx++}`);
         values.push(grade);
       }
+      if (mandateCode) {
+        const parts = [`acm.mandate_code = $${idx}`];
+        values.push(mandateCode);
+        idx++;
+        if (grade && Number.isInteger(grade)) {
+          parts.push(`acm.mandate_grade = $${idx}`);
+          values.push(grade);
+          idx++;
+        }
+        conditions.push(
+          `EXISTS (SELECT 1 FROM activity_cbse_mandates acm
+                    WHERE acm.activity_id = a.id AND ${parts.join(" AND ")})`,
+        );
+      }
 
       const topicParts: string[] = [];
       let searchBinds: { patternIdx: number; rawIdx: number } | null = null;
@@ -192,6 +230,7 @@ export async function GET(request: NextRequest) {
         topicParts.push(
           activityTopicMatchSql("a", "c", searchBinds.patternIdx, searchBinds.rawIdx),
         );
+        topicParts.push(activityMandateMatchSql("a", searchBinds.patternIdx));
         idx = searchBinds.rawIdx + 1;
 
         if (subjectId && Number.isInteger(subjectId)) {
@@ -254,7 +293,8 @@ export async function GET(request: NextRequest) {
                 c.grade, c.chapter_code, c.title AS chapter_title, c.anchor_curriculum,
                 s.id AS subject_id, s.slug AS subject_slug, s.name AS subject_name,
                 (SELECT COUNT(*)::int FROM questions qn
-                  WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count
+                  WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count,
+                ${activityMandatesJsonSql("a")} AS mandates
            FROM activities a
            JOIN chapters c ON c.id = a.chapter_id
            JOIN subjects s ON s.id = c.subject_id
@@ -293,6 +333,7 @@ export async function GET(request: NextRequest) {
           chapter_id: chapterId ?? null,
           section_id: sectionId ?? null,
           q: q || null,
+          mandate_code: mandateCode,
           anchor_subject_slug: anchorSubjectSlug,
           fuzzy: !!q,
         },

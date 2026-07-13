@@ -9,7 +9,7 @@ import { QuestCard } from "@/components/quest-card";
 import { CompletedWorkPanel } from "@/components/completed-work-panel";
 import { firstName, getTimeGreeting } from "@/lib/quest-preview";
 import type { ActivityListItem } from "@/lib/activities";
-import { Building2, CheckCircle2, Loader2, Search, Sparkles } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 type HomeTab = "find" | "history";
 
@@ -37,6 +37,15 @@ type CatalogChapter = {
   grade: number;
   anchor_curriculum: string | null;
   quest_count: number;
+};
+
+type CatalogMandate = {
+  grade: number;
+  code: string;
+  handbook_item: string;
+  unit: string | null;
+  handbook_track: string;
+  activity_count: number;
 };
 
 type TeacherSection = {
@@ -84,6 +93,7 @@ export default function DashboardHome() {
   const [homeTab, setHomeTab] = useState<HomeTab>("find");
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [chapterId, setChapterId] = useState<number | null>(null);
+  const [mandateCode, setMandateCode] = useState<string | null>(null);
   const [topicQuery, setTopicQuery] = useState("");
   const debouncedTopic = useDebouncedValue(topicQuery, 300);
 
@@ -146,12 +156,24 @@ export default function DashboardHome() {
     enabled: !!user && !!subjectId,
   });
 
+  const { data: mandates = [] } = useQuery<CatalogMandate[]>({
+    queryKey: ["/api/catalog/mandates", grade],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (grade) params.set("grade", String(grade));
+      const res = await fetch(`/api/catalog/mandates?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load mandates");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
   const activitiesQueryKey = useMemo(
     () => [
       "/api/activities",
-      { subjectId, chapterId, grade, sectionId, q: chapterSearch },
+      { subjectId, chapterId, grade, sectionId, q: chapterSearch, mandateCode },
     ],
-    [subjectId, chapterId, grade, sectionId, chapterSearch],
+    [subjectId, chapterId, grade, sectionId, chapterSearch, mandateCode],
   );
 
   const {
@@ -167,6 +189,7 @@ export default function DashboardHome() {
       if (grade) params.set("grade", String(grade));
       if (sectionId) params.set("section_id", String(sectionId));
       if (chapterSearch) params.set("q", chapterSearch);
+      if (mandateCode) params.set("mandate_code", mandateCode);
       const res = await fetch(`/api/activities?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load activities");
       return res.json();
@@ -178,6 +201,7 @@ export default function DashboardHome() {
   const ready = !!overview?.academic_year && (overview?.section_count ?? 0) > 0;
   const selectedSubject = subjects.find((s) => s.id === subjectId);
   const selectedChapter = chapters.find((c) => c.id === chapterId);
+  const selectedMandate = mandates.find((m) => m.code === mandateCode);
 
   function handleRun(activityId: number) {
     const params = sectionId ? `?sectionId=${sectionId}` : "";
@@ -396,6 +420,50 @@ export default function DashboardHome() {
             ) : null}
           </div>
         </div>
+
+        {mandates.length > 0 && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                <ShieldCheck className="h-3.5 w-3.5 text-teal-700" />
+                CBSE handbook mandate{grade ? ` · Grade ${grade}` : ""}
+              </span>
+              {mandateCode && (
+                <button
+                  type="button"
+                  onClick={() => setMandateCode(null)}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+              {mandates.map((m) => {
+                const selected = mandateCode === m.code;
+                return (
+                  <button
+                    key={`${m.grade}-${m.code}`}
+                    type="button"
+                    onClick={() => setMandateCode(selected ? null : m.code)}
+                    title={`${m.code} · ${m.handbook_item}${m.unit ? ` (${m.unit})` : ""}`}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      selected
+                        ? "border-teal-300 bg-teal-600 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="font-bold">{m.code}</span>
+                    <span className={selected ? "text-teal-50" : "text-slate-500"}>
+                      {" "}
+                      · {m.handbook_item}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       <section>
@@ -411,6 +479,7 @@ export default function DashboardHome() {
               {selectedSubject ? ` · ${selectedSubject.name}` : ""}
               {selectedChapter ? ` · ${selectedChapter.title}` : ""}
               {grade && !selectedChapter ? ` · Grade ${grade}` : ""}
+              {selectedMandate ? ` · ${selectedMandate.code} ${selectedMandate.handbook_item}` : ""}
             </p>
             <p className="mt-1 text-xs text-slate-400">
               Quests are Computational Thinking activities mapped to your lesson — not a separate

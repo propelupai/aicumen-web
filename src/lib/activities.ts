@@ -1,5 +1,13 @@
 export type ActivityAccent = "teal" | "sky" | "amber" | "slate";
 
+/** CBSE handbook mandate an activity satisfies (e.g. M4 · Recommendation Systems). */
+export type ActivityMandate = {
+  grade: number;
+  code: string;
+  handbook_item: string;
+  unit: string | null;
+};
+
 export type ActivityMetadata = {
   quest_code?: string;
   theme?: string;
@@ -35,6 +43,7 @@ export type ActivityListItem = {
   enrichment_status?: string;
   chapter_dependent?: boolean;
   source_type_label?: string | null;
+  mandates?: ActivityMandate[];
 };
 
 export type QuestionRow = {

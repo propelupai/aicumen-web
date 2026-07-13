@@ -7,9 +7,11 @@ import { apiErrorResponse } from "@/lib/api-error";
 import { assertActiveSchool, assertTeacherAccount } from "@/lib/rbac";
 import {
   type ActivityListItem,
+  type ActivityMandate,
   metadataToListFields,
   parseActivityMetadata,
 } from "@/lib/activities";
+import { activityMandatesJsonSql } from "@/lib/topic-search";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -34,6 +36,7 @@ type Row = {
   completed_at: string | null;
   updated_at: string;
   coach_step_count: number;
+  mandates: ActivityMandate[] | null;
 };
 
 /** Section-scoped activity history (completed / in progress) — not limited by curriculum track. */
@@ -104,7 +107,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
               s.id AS subject_id, s.slug AS subject_slug, s.name AS subject_name,
               p.status AS progress_status, p.completed_at, p.updated_at,
               (SELECT COUNT(*)::int FROM questions qn
-                 WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count
+                 WHERE qn.activity_id = a.id AND qn.role = 'coach_step') AS coach_step_count,
+              ${activityMandatesJsonSql("a")} AS mandates
          FROM section_activity_progress p
          JOIN activities a ON a.id = p.activity_id
          JOIN chapters c ON c.id = a.chapter_id
@@ -136,6 +140,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         subject_name: row.subject_name,
         activity_type: row.activity_type,
         source_type_label: row.source_type_label,
+        mandates: row.mandates ?? [],
         progress_status: row.progress_status,
         completed_at: row.completed_at,
         updated_at: row.updated_at,

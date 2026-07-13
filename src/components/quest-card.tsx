@@ -1,3 +1,4 @@
+import { ShieldCheck } from "lucide-react";
 import type { ActivityAccent, ActivityListItem } from "@/lib/activities";
 
 const accentMap: Record<
@@ -62,6 +63,14 @@ export function QuestCard({
   const isCompleted = progressStatus === "completed" || !!completedAt;
   const buttonLabel = runLabel ?? (disabled ? "Soon" : "Run live →");
 
+  const mandates = activity.mandates ?? [];
+  const mandateCodes = mandates.map((m) => m.code);
+  const shownCodes = mandateCodes.slice(0, 3);
+  const extraCount = mandateCodes.length - shownCodes.length;
+  const mandateTooltip = mandates
+    .map((m) => `${m.code} · ${m.handbook_item}`)
+    .join("\n");
+
   return (
     <article
       className={`flex flex-col rounded-2xl border bg-white p-5 shadow-sm transition-all ${accent.border} ${
@@ -102,6 +111,16 @@ export function QuestCard({
         <p className="mt-1.5 text-xs text-slate-500">
           {activity.theme} · {stars(activity.stars)} · {activity.difficulty}
         </p>
+        {mandateCodes.length > 0 && (
+          <p
+            className="mt-2 flex items-center justify-center gap-1 text-[10px] font-semibold tracking-wide text-slate-400"
+            title={mandateTooltip}
+          >
+            <ShieldCheck className="h-3 w-3" />
+            CBSE {shownCodes.join(", ")}
+            {extraCount > 0 ? ` +${extraCount}` : ""}
+          </p>
+        )}
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-4">

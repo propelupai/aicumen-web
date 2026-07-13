@@ -94,6 +94,36 @@ export function activityTopicRankSql(
   )`;
 }
 
+/** Match an activity's CBSE mandate tags by code or handbook item (substring). */
+export function activityMandateMatchSql(activityAlias: string, patternIdx: number): string {
+  const p = `$${patternIdx}`;
+  return `EXISTS (
+    SELECT 1 FROM activity_cbse_mandates acm
+    JOIN cbse_mandates m
+      ON m.grade = acm.mandate_grade AND m.code = acm.mandate_code
+    WHERE acm.activity_id = ${activityAlias}.id
+      AND (m.code ILIKE ${p} OR m.handbook_item ILIKE ${p} OR COALESCE(m.unit, '') ILIKE ${p})
+  )`;
+}
+
+/** Correlated subquery returning an activity's mandates as a JSON array. */
+export function activityMandatesJsonSql(activityAlias: string): string {
+  return `COALESCE((
+    SELECT json_agg(
+             json_build_object(
+               'grade', m.grade,
+               'code', m.code,
+               'handbook_item', m.handbook_item,
+               'unit', m.unit
+             ) ORDER BY m.sort_order, m.code
+           )
+      FROM activity_cbse_mandates acm
+      JOIN cbse_mandates m
+        ON m.grade = acm.mandate_grade AND m.code = acm.mandate_code
+     WHERE acm.activity_id = ${activityAlias}.id
+  ), '[]'::json)`;
+}
+
 /** CT-program quest matched to a CBSE lesson via activity_cbse_anchors. */
 export function ctAnchorMatchSql(
   activityAlias: string,

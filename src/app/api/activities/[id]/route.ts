@@ -11,6 +11,7 @@ import {
   metadataToListFields,
   parseActivityMetadata,
 } from "@/lib/activities";
+import { activityMandatesJsonSql } from "@/lib/topic-search";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -48,7 +49,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       `SELECT a.id, a.slug, a.title, a.activity_type, a.estimated_minutes,
               a.ct_skills, a.ai_concept, a.metadata,
               c.grade, c.chapter_code, c.title AS chapter_title,
-              s.name AS subject_name, s.slug AS subject_slug
+              s.name AS subject_name, s.slug AS subject_slug,
+              ${activityMandatesJsonSql("a")} AS mandates
          FROM activities a
          JOIN chapters c ON c.id = a.chapter_id
          JOIN subjects s ON s.id = c.subject_id
@@ -93,6 +95,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       chapter_code: row.chapter_code,
       subject_name: row.subject_name,
       subject_slug: row.subject_slug,
+      mandates: row.mandates ?? [],
       stem,
       coach_steps,
       extend,

@@ -89,11 +89,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ message: "Class not found" }, { status: 404 });
     }
 
-    const sectionCount = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::int AS count FROM sections WHERE class_id = $1`,
+    const sectionCount = await client.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM sections WHERE class_id = $1 AND is_active = TRUE`,
       [classId],
     );
-    if (parseInt(sectionCount.rows[0]?.count ?? "0", 10) > 0) {
+    if ((sectionCount.rows[0]?.count ?? 0) > 0) {
       return NextResponse.json(
         { message: "Remove all sections before deleting this class." },
         { status: 409 },

@@ -175,7 +175,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#f4f6f8] text-slate-900">
-      <header className="relative z-10 border-b border-slate-200 bg-white shadow-sm">
+      <header className="relative z-40 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">

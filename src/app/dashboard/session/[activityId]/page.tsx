@@ -27,6 +27,7 @@ import {
   type SessionPresentState,
 } from "@/lib/session-broadcast";
 import { useActiveSession } from "@/context/active-session-context";
+import { JournalRosterEditor } from "@/components/journal-roster-editor";
 
 type SessionPhase = "stem" | "coach" | "extend" | "done";
 
@@ -64,6 +65,7 @@ export default function LiveSessionPage() {
   const [showNotes, setShowNotes] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
   const [channelId] = useState(() => createPresentChannelId(activityId));
+  const [journalOpen, setJournalOpen] = useState(false);
   const projectorRef = useRef<Window | null>(null);
   const restoredRef = useRef(false);
   const startedAtRef = useRef<number>(Date.now());
@@ -402,6 +404,16 @@ export default function LiveSessionPage() {
           </span>
           <button
             type="button"
+            onClick={() => setJournalOpen(true)}
+            disabled={!sectionId}
+            title={sectionId ? "Mark students without leaving the session" : "Pick a section to mark students"}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-800 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ClipboardList className="h-4 w-4" />
+            Mark students
+          </button>
+          <button
+            type="button"
             onClick={openProjector}
             className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-900"
           >
@@ -668,6 +680,41 @@ export default function LiveSessionPage() {
           </div>
         </section>
       </div>
+
+      {/* Mark students slide-over */}
+      {journalOpen && sectionId != null && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setJournalOpen(false)}
+            aria-hidden
+          />
+          <div className="relative flex h-full w-full max-w-xl flex-col bg-slate-50 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-teal-700" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Mark students</p>
+                  <p className="text-xs text-slate-500">
+                    Assess the class on this activity — saves to the journal
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setJournalOpen(false)}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <JournalRosterEditor sectionId={sectionId} activityId={activityId} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

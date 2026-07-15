@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Eye,
   EyeOff,
   ExternalLink,
@@ -17,6 +18,7 @@ import {
   CheckCircle2,
   Monitor,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import type { ActivityDetail } from "@/lib/activities";
 import {
@@ -24,6 +26,7 @@ import {
   createPresentChannelId,
   type SessionPresentState,
 } from "@/lib/session-broadcast";
+import { useActiveSession } from "@/context/active-session-context";
 
 type SessionPhase = "stem" | "coach" | "extend" | "done";
 
@@ -48,6 +51,7 @@ export default function LiveSessionPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const { activeSession, hydrated, startSession, endSession } = useActiveSession();
   const activityId = parseInt(String(params.activityId ?? ""), 10);
 
   const initialSectionId = searchParams.get("sectionId");
@@ -61,6 +65,8 @@ export default function LiveSessionPage() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [channelId] = useState(() => createPresentChannelId(activityId));
   const projectorRef = useRef<Window | null>(null);
+  const restoredRef = useRef(false);
+  const startedAtRef = useRef<number>(Date.now());
 
   const { data: activity, isLoading, isError } = useQuery<ActivityDetail>({
     queryKey: ["/api/activities", activityId],
@@ -213,6 +219,44 @@ export default function LiveSessionPage() {
     if (presentState) broadcastPresentState(channelId, presentState);
   }, [channelId, presentState]);
 
+  // Restore in-progress state once when resuming an existing active session.
+  useEffect(() => {
+    if (!activity || !hydrated || restoredRef.current) return;
+    if (activeSession && activeSession.activityId === activityId) {
+      setPhase(activeSession.phase as SessionPhase);
+      setCoachIndex(activeSession.coachIndex);
+      setSectionId((cur) => (cur == null ? activeSession.sectionId : cur));
+      startedAtRef.current = activeSession.startedAt;
+    } else {
+      startedAtRef.current = Date.now();
+    }
+    restoredRef.current = true;
+  }, [activity, hydrated, activeSession, activityId]);
+
+  // Keep the persistent active-session store in sync with the live session.
+  useEffect(() => {
+    if (!activity || !restoredRef.current) return;
+    startSession({
+      activityId,
+      sectionId,
+      title: activity.title,
+      emoji: activity.emoji,
+      questCode: activity.quest_code,
+      phase,
+      coachIndex,
+      totalCoachSteps,
+      startedAt: startedAtRef.current,
+    });
+  }, [
+    activity,
+    sectionId,
+    phase,
+    coachIndex,
+    activityId,
+    totalCoachSteps,
+    startSession,
+  ]);
+
   function openProjector() {
     const url = `/present/${activityId}?channel=${encodeURIComponent(channelId)}`;
     if (projectorRef.current && !projectorRef.current.closed) {
@@ -290,6 +334,12 @@ export default function LiveSessionPage() {
     if (sectionId) {
       await progressMutation.mutateAsync("completed");
     }
+    endSession();
+    router.push("/dashboard/home");
+  }
+
+  function handleEndSession() {
+    endSession();
     router.push("/dashboard/home");
   }
 
@@ -323,9 +373,10 @@ export default function LiveSessionPage() {
         <Link
           href="/dashboard/home"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
+          title="Keep this session live and return later from the resume bar"
         >
           <ArrowLeft className="h-4 w-4" />
-          Exit session
+          Minimize
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           {sections.length > 0 && (
@@ -357,6 +408,14 @@ export default function LiveSessionPage() {
             <Monitor className="h-4 w-4" />
             Open projector
             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+          </button>
+          <button
+            type="button"
+            onClick={handleEndSession}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            <X className="h-4 w-4" />
+            End session
           </button>
         </div>
       </div>
@@ -581,19 +640,30 @@ export default function LiveSessionPage() {
                 <ChevronRight className="h-4 w-4" />
               </button>
             ) : (
-              <button
-                type="button"
-                disabled={progressMutation.isPending}
-                onClick={handleMarkComplete}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
-              >
-                {progressMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
+              <>
+                {sectionId && (
+                  <Link
+                    href={`/dashboard/journal?section_id=${sectionId}&activity_id=${activityId}`}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Journal
+                  </Link>
                 )}
-                Mark complete
-              </button>
+                <button
+                  type="button"
+                  disabled={progressMutation.isPending}
+                  onClick={handleMarkComplete}
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+                >
+                  {progressMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  Mark complete
+                </button>
+              </>
             )}
           </div>
         </section>

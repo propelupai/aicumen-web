@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
+import { ActiveSessionBar } from "@/components/active-session-bar";
 import { formatUserRoleLabel } from "@/lib/user-profile";
 
 const navItems: {
@@ -30,6 +31,7 @@ const navItems: {
 }[] = [
   { href: "/dashboard/home", label: "Dashboard", icon: LayoutDashboard, match: "/dashboard/home" },
   { href: "/dashboard/school", label: "School", icon: Building2 },
+  { href: "/dashboard/journal", label: "Journal", icon: ClipboardList },
   { href: "/dashboard/access", label: "People", icon: Shield, adminOnly: true },
   { href: "/dashboard/content", label: "Content", icon: BookOpen, contentAccess: true },
 ];
@@ -37,7 +39,6 @@ const navItems: {
 const comingSoonItems: { label: string; icon: LucideIcon; hint: string }[] = [
   { label: "Tutorials", icon: PlayCircle, hint: "Guided walkthroughs" },
   { label: "Certification", icon: GraduationCap, hint: "Earn your AI Period badge" },
-  { label: "Journal", icon: ClipboardList, hint: "Class observation notes" },
 ];
 
 type MySchool = {
@@ -267,6 +268,8 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
       <footer className="relative z-10 border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
         © {new Date().getFullYear()} AICUMEN · A product of PropelUpAI, Inc.
       </footer>
+
+      <ActiveSessionBar />
     </div>
   );
 }

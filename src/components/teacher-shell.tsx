@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -13,25 +13,32 @@ import {
   GraduationCap,
   LayoutDashboard,
   Loader2,
+  MoreHorizontal,
   PlayCircle,
   Shield,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { ActiveSessionBar } from "@/components/active-session-bar";
 import { formatUserRoleLabel } from "@/lib/user-profile";
 
-const navItems: {
+type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
   match?: string;
   adminOnly?: boolean;
   contentAccess?: boolean;
-}[] = [
+};
+
+const navItems: NavItem[] = [
+  // Ordered by priority: earlier items stay visible; later ones collapse into
+  // the "More" menu first when horizontal space runs out.
   { href: "/dashboard/home", label: "Dashboard", icon: LayoutDashboard, match: "/dashboard/home" },
-  { href: "/dashboard/school", label: "School", icon: Building2 },
+  { href: "/dashboard/classes", label: "Classes", icon: Users },
   { href: "/dashboard/journal", label: "Journal", icon: ClipboardList },
+  { href: "/dashboard/school", label: "Setup", icon: Building2 },
   { href: "/dashboard/access", label: "People", icon: Shield, adminOnly: true },
   { href: "/dashboard/content", label: "Content", icon: BookOpen, contentAccess: true },
 ];
@@ -54,6 +61,17 @@ function navPillClass(active: boolean) {
     : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50";
 }
 
+function isNavActive(pathname: string, item: NavItem): boolean {
+  return (
+    pathname === item.href ||
+    pathname === item.match ||
+    (item.href !== "/dashboard/home" && pathname.startsWith(`${item.href}/`))
+  );
+}
+
+// useLayoutEffect on the client, useEffect during SSR (avoids the hydration warning).
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 function visibleNavItems(user: NonNullable<ReturnType<typeof useAuth>["user"]>) {
   return navItems.filter((item) => {
     if (item.adminOnly) {
@@ -66,9 +84,106 @@ function visibleNavItems(user: NonNullable<ReturnType<typeof useAuth>["user"]>) 
   });
 }
 
-function ComingSoonMenu() {
+function NavPill({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${navPillClass(active)}`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {item.label}
+    </Link>
+  );
+}
+
+/**
+ * Top navigation that shows as many items as fit and collapses the rest into a
+ * "More" menu. Items are prioritised by their order in `items` — the first ones
+ * stay visible longest. The "More" menu also holds "coming soon" entries, so it
+ * is always rendered and its width is always reserved.
+ */
+function ResponsiveNav({ items, pathname }: { items: NavItem[]; pathname: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(items.length);
+
+  const itemsKey = items.map((i) => i.href).join(",");
+
+  useIsomorphicLayoutEffect(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    if (!container || !measure) return;
+
+    const GAP = 6; // matches gap-1.5
+
+    function recompute() {
+      if (!container || !measure) return;
+      const itemEls = Array.from(measure.children) as HTMLElement[];
+      const itemWidths = itemEls.map((el) => el.getBoundingClientRect().width);
+      const moreWidth = moreRef.current?.getBoundingClientRect().width ?? 88;
+      const available = container.getBoundingClientRect().width;
+
+      // Always reserve room for the More button (holds coming-soon items).
+      let used = moreWidth + GAP;
+      let count = 0;
+      for (const w of itemWidths) {
+        const needed = w + GAP;
+        if (used + needed <= available) {
+          used += needed;
+          count += 1;
+        } else {
+          break;
+        }
+      }
+      setVisibleCount(count);
+    }
+
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [itemsKey]);
+
+  const visible = items.slice(0, visibleCount);
+  const overflow = items.slice(visibleCount);
+
+  return (
+    <div ref={containerRef} className="flex min-w-0 flex-1 items-center justify-center">
+      {/* Hidden measurement row: full item set, used to compute widths. */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute -z-10 flex flex-nowrap gap-1.5"
+      >
+        {items.map((item) => (
+          <NavPill key={item.href} item={item} active={false} />
+        ))}
+      </div>
+
+      <div className="flex min-w-0 items-center gap-1.5">
+        {visible.map((item) => (
+          <NavPill key={item.href} item={item} active={isNavActive(pathname, item)} />
+        ))}
+        <MoreMenu ref={moreRef} overflow={overflow} pathname={pathname} />
+      </div>
+    </div>
+  );
+}
+
+function MoreMenu({
+  ref,
+  overflow,
+  pathname,
+}: {
+  ref: React.Ref<HTMLDivElement>;
+  overflow: NavItem[];
+  pathname: string;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const hasOverflowActive = overflow.some((item) => isNavActive(pathname, item));
 
   useEffect(() => {
     if (!open) return;
@@ -88,42 +203,81 @@ function ComingSoonMenu() {
     };
   }, [open]);
 
+  // Close the menu whenever navigation changes route.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   return (
-    <div ref={rootRef} className="relative shrink-0">
+    <div
+      ref={(node) => {
+        rootRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      }}
+      className="relative shrink-0"
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600 sm:text-sm"
+        className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
+          hasOverflowActive
+            ? "border-teal-700 bg-teal-700 text-white"
+            : "border-dashed border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"
+        }`}
       >
+        <MoreHorizontal className="h-3.5 w-3.5" />
         More
-        <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+0.375rem)] z-50 w-56 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-black/5"
+          className="absolute right-0 top-[calc(100%+0.375rem)] z-50 w-60 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-black/5"
         >
-          <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
-            Coming soon
-          </p>
-          {comingSoonItems.map(({ label, icon: Icon, hint }) => (
-            <div
-              key={label}
-              role="menuitem"
-              aria-disabled="true"
-              className="flex items-start gap-2.5 px-3 py-2 text-slate-500"
-            >
-              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-700">{label}</p>
-                <p className="text-xs leading-snug text-slate-500">{hint}</p>
-              </div>
+          {overflow.length > 0 && (
+            <div className="pb-1">
+              {overflow.map((item) => {
+                const Icon = item.icon;
+                const active = isNavActive(pathname, item);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors ${
+                      active ? "bg-teal-50 text-teal-900" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? "text-teal-700" : "text-slate-400"}`} />
+                    {item.label}
+                  </Link>
+                );
+              })}
             </div>
-          ))}
+          )}
+          <div className={overflow.length > 0 ? "border-t border-slate-100 pt-1.5" : ""}>
+            <p className="px-3 pb-1.5 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+              Coming soon
+            </p>
+            {comingSoonItems.map(({ label, icon: Icon, hint }) => (
+              <div
+                key={label}
+                role="menuitem"
+                aria-disabled="true"
+                className="flex items-start gap-2.5 px-3 py-2 text-slate-500"
+              >
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-700">{label}</p>
+                  <p className="text-xs leading-snug text-slate-500">{hint}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -172,7 +326,10 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
   const displayName = user.display_name || user.firebaseUser.email?.split("@")[0] || "Teacher";
   const roleLabel = formatUserRoleLabel(user);
   const profileActive = pathname === "/dashboard/profile";
-  const items = visibleNavItems(user);
+  const items = useMemo(
+    () => visibleNavItems(user),
+    [user.school_role_key, user.platform_role],
+  );
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#f4f6f8] text-slate-900">
@@ -197,26 +354,8 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            <nav
-              aria-label="Main"
-              className="flex min-w-0 items-center gap-1.5 lg:flex-1 lg:justify-center"
-            >
-              <div className="flex min-w-0 flex-nowrap gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {items.map(({ href, label, icon: Icon, match }) => {
-                  const active = pathname === href || pathname === match;
-                  return (
-                    <Link
-                      key={href}
-                      href={href}
-                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${navPillClass(active)}`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      {label}
-                    </Link>
-                  );
-                })}
-              </div>
-              <ComingSoonMenu />
+            <nav aria-label="Main" className="flex min-w-0 items-center lg:flex-1">
+              <ResponsiveNav items={items} pathname={pathname} />
             </nav>
 
             <div className="flex items-center justify-between gap-2 lg:shrink-0 lg:justify-end">

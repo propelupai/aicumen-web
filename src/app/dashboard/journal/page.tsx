@@ -3,14 +3,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ClipboardList, Loader2, ShieldCheck, Sparkles, User } from "lucide-react";
+import {
+  BarChart3,
+  Check,
+  ClipboardList,
+  Clock,
+  Loader2,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  User,
+} from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { UserAvatar } from "@/components/user-avatar";
 import {
   JournalRosterEditor,
   LevelDistribution,
 } from "@/components/journal-roster-editor";
-import { JOURNAL_LEVELS, JOURNAL_LEVEL_META, type JournalLevel, isJournalLevel } from "@/lib/journal";
+import { StudentJournalView, type StudentJournal } from "@/components/student-journal-view";
+import { JOURNAL_LEVELS, JOURNAL_LEVEL_META } from "@/lib/journal";
 
 type TeacherSection = {
   id: number;
@@ -37,8 +47,12 @@ export default function JournalPage() {
     const v = parseInt(searchParams.get("activity_id") ?? "", 10);
     return Number.isInteger(v) ? v : null;
   })();
+  const initialTab = ((): JournalTab => {
+    const t = searchParams.get("tab");
+    return t === "class" || t === "student" || t === "mark" ? t : "mark";
+  })();
   const [sectionId, setSectionId] = useState<number | null>(initialSectionId);
-  const [tab, setTab] = useState<JournalTab>("mark");
+  const [tab, setTab] = useState<JournalTab>(initialTab);
 
   const { data: teacherSections } = useQuery<TeacherSectionsResponse>({
     queryKey: ["/api/teachers/me/sections"],
@@ -170,7 +184,21 @@ type RecordedActivity = {
   chapter_title: string;
   subject_name?: string;
   progress_status?: string;
+  completed_at?: string | null;
+  updated_at?: string;
 };
+
+function formatRelative(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const diffMs = Date.now() - d.getTime();
+  const day = 24 * 60 * 60 * 1000;
+  if (diffMs < day) return "today";
+  if (diffMs < 2 * day) return "yesterday";
+  if (diffMs < 7 * day) return `${Math.floor(diffMs / day)}d ago`;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
 
 function MarkTab({
   sectionId,
@@ -180,6 +208,8 @@ function MarkTab({
   initialActivityId?: number | null;
 }) {
   const [activityId, setActivityId] = useState<number | null>(initialActivityId ?? null);
+  const [search, setSearch] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
 
   const { data: recorded, isLoading: recordedLoading } = useQuery<{ items: RecordedActivity[] }>({
     queryKey: ["/api/sections/completed", sectionId, "all-for-journal"],
@@ -192,49 +222,153 @@ function MarkTab({
     },
   });
 
-  const activities = recorded?.items ?? [];
+  const activities = useMemo(() => recorded?.items ?? [], [recorded]);
 
   const prevSectionRef = useRef(sectionId);
   useEffect(() => {
     if (prevSectionRef.current === sectionId) return;
     prevSectionRef.current = sectionId;
     setActivityId(null);
+    setSearch("");
+    setSubjectFilter(null);
   }, [sectionId]);
+
+  const subjects = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of activities) if (a.subject_name) set.add(a.subject_name);
+    return Array.from(set).sort();
+  }, [activities]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return activities.filter((a) => {
+      if (subjectFilter && a.subject_name !== subjectFilter) return false;
+      if (!q) return true;
+      return (
+        a.title.toLowerCase().includes(q) ||
+        (a.quest_code ?? "").toLowerCase().includes(q) ||
+        (a.chapter_title ?? "").toLowerCase().includes(q) ||
+        (a.subject_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [activities, search, subjectFilter]);
+
+  const selected = activities.find((a) => a.id === activityId) ?? null;
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <label className="block">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-semibold text-slate-600">Activity to mark</span>
-          {recordedLoading ? (
-            <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin text-teal-700" /> Loading activities…
-            </div>
-          ) : activities.length === 0 ? (
-            <p className="mt-1 text-sm text-slate-500">
-              No activities have been run with this section yet. Run a live session first, then come
-              back to mark it.
-            </p>
-          ) : (
-            <select
-              value={activityId ?? ""}
-              onChange={(e) => {
-                const id = parseInt(e.target.value, 10);
-                setActivityId(Number.isInteger(id) ? id : null);
-              }}
-              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+          {selected && (
+            <button
+              type="button"
+              onClick={() => setActivityId(null)}
+              className="text-xs font-medium text-teal-700 hover:text-teal-900"
             >
-              <option value="">Select an activity…</option>
-              {activities.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.quest_code ? `${a.quest_code} · ` : ""}
-                  {a.title}
-                  {a.chapter_title ? ` — ${a.chapter_title}` : ""}
-                </option>
-              ))}
-            </select>
+              Change activity
+            </button>
           )}
-        </label>
+        </div>
+
+        {recordedLoading ? (
+          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin text-teal-700" /> Loading activities…
+          </div>
+        ) : activities.length === 0 ? (
+          <p className="mt-1 text-sm text-slate-500">
+            No activities have been run with this section yet. Run a live session first, then come
+            back to mark it.
+          </p>
+        ) : selected ? (
+          <div className="mt-3 flex items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 px-4 py-3">
+            <Check className="h-4 w-4 shrink-0 text-teal-700" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {selected.quest_code ? (
+                  <span className="text-slate-400">{selected.quest_code} · </span>
+                ) : null}
+                {selected.title}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {[selected.subject_name, selected.chapter_title].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by activity, quest code, chapter, or subject…"
+                className="w-full rounded-lg border border-slate-200 py-2 pr-3 pl-9 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              />
+            </div>
+
+            {subjects.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <FilterChip active={subjectFilter === null} onClick={() => setSubjectFilter(null)}>
+                  All subjects
+                </FilterChip>
+                {subjects.map((s) => (
+                  <FilterChip
+                    key={s}
+                    active={subjectFilter === s}
+                    onClick={() => setSubjectFilter(subjectFilter === s ? null : s)}
+                  >
+                    {s}
+                  </FilterChip>
+                ))}
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <p className="text-sm text-slate-500">No activities match your filters.</p>
+            ) : (
+              <ul className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                {filtered.map((a, i) => {
+                  const when = formatRelative(a.completed_at ?? a.updated_at);
+                  const isLatest = i === 0 && !search && !subjectFilter;
+                  return (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        onClick={() => setActivityId(a.id)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-teal-300 hover:bg-teal-50/40"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-900">
+                            {a.quest_code ? (
+                              <span className="text-slate-400">{a.quest_code} · </span>
+                            ) : null}
+                            {a.title}
+                            {isLatest && (
+                              <span className="ml-2 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-800">
+                                Latest
+                              </span>
+                            )}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {[a.subject_name, a.chapter_title].filter(Boolean).join(" · ") || "—"}
+                          </p>
+                        </div>
+                        {when && (
+                          <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400">
+                            <Clock className="h-3.5 w-3.5" />
+                            {when}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {activityId == null ? (
@@ -243,6 +377,28 @@ function MarkTab({
         <JournalRosterEditor sectionId={sectionId} activityId={activityId} />
       )}
     </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+        active ? "bg-teal-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -439,34 +595,6 @@ type SectionStudent = {
   assigned_to_this_section: boolean;
 };
 
-type StudentJournal = {
-  student: { user_id: string; display_name: string | null; email: string; username: string | null };
-  overall: LevelCountRow & { assessed: number };
-  subjects: (LevelCountRow & { subject_id: number; subject_name: string; assessed: number })[];
-  mandates: { grade: number; code: string; handbook_item: string; unit: string | null; best_rank: number }[];
-  timeline: {
-    activity_id: number;
-    title: string;
-    quest_code: string | null;
-    level: string | null;
-    remark: string | null;
-    assessed_at: string | null;
-    updated_at: string;
-    chapter_title: string | null;
-    subject_name: string | null;
-    grade: number | null;
-    section_name: string | null;
-    academic_year_label: string | null;
-  }[];
-};
-
-const RANK_TO_LEVEL: Record<number, JournalLevel | null> = {
-  0: null,
-  1: "got_answer",
-  2: "got_rule",
-  3: "able_to_teach",
-};
-
 function StudentInsightsTab({ sectionId }: { sectionId: number }) {
   const [studentId, setStudentId] = useState<string | null>(null);
 
@@ -539,126 +667,3 @@ function StudentInsightsTab({ sectionId }: { sectionId: number }) {
   );
 }
 
-function StudentJournalView({ data }: { data: StudentJournal }) {
-  const name = data.student.display_name?.trim() || data.student.email;
-  const o = data.overall;
-  const assessedTotal = o.assessed || 0;
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <UserAvatar name={name} size="md" />
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">{name}</h2>
-            <p className="text-xs text-slate-500">{assessedTotal} activities assessed</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          {JOURNAL_LEVELS.map((lvl) => {
-            const meta = JOURNAL_LEVEL_META[lvl];
-            return (
-              <div key={lvl} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-center">
-                <p className={`text-2xl font-bold ${
-                  lvl === "got_answer" ? "text-amber-600" : lvl === "got_rule" ? "text-sky-600" : "text-teal-600"
-                }`}>
-                  {o[lvl]}
-                </p>
-                <p className="mt-0.5 text-[11px] font-medium text-slate-500">{meta.label}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {data.subjects.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-900">By subject</h3>
-          <div className="mt-4 space-y-3">
-            {data.subjects.map((s) => (
-              <div key={s.subject_id}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium text-slate-800">{s.subject_name}</p>
-                  <span className="text-xs text-slate-400">{s.assessed} assessed</span>
-                </div>
-                <div className="mt-1.5">
-                  <LevelDistribution counts={s} total={s.assessed} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {data.mandates.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-teal-700" />
-            <h3 className="text-sm font-semibold text-slate-900">CBSE mandate mastery</h3>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {data.mandates.map((m) => {
-              const lvl = RANK_TO_LEVEL[m.best_rank] ?? null;
-              const meta = lvl ? JOURNAL_LEVEL_META[lvl] : null;
-              return (
-                <span
-                  key={`${m.grade}-${m.code}`}
-                  title={`${m.handbook_item}${m.unit ? ` · ${m.unit}` : ""} — ${meta?.label ?? "Not assessed"}`}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-                    meta ? meta.badgeClass : "bg-slate-50 text-slate-500 ring-1 ring-slate-200"
-                  }`}
-                >
-                  <span className="font-bold">{m.code}</span>
-                  {meta ? `· ${meta.short}` : ""}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {data.timeline.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-900">Timeline</h3>
-          <ul className="mt-4 space-y-3">
-            {data.timeline.map((t, i) => {
-              const lvl = isJournalLevel(t.level) ? t.level : null;
-              const meta = lvl ? JOURNAL_LEVEL_META[lvl] : null;
-              return (
-                <li key={`${t.activity_id}-${i}`} className="flex gap-3">
-                  <div className="mt-1 flex flex-col items-center">
-                    <span className={`h-2.5 w-2.5 rounded-full ${meta ? meta.barClass : "bg-slate-300"}`} />
-                    {i < data.timeline.length - 1 && <span className="mt-1 w-px flex-1 bg-slate-200" />}
-                  </div>
-                  <div className="min-w-0 flex-1 pb-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <p className="truncate text-sm font-medium text-slate-800">
-                        {t.quest_code ? <span className="text-slate-400">{t.quest_code} · </span> : null}
-                        {t.title}
-                      </p>
-                      {meta && (
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${meta.badgeClass}`}>
-                          {meta.label}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      {[t.subject_name, t.chapter_title, t.section_name, t.academic_year_label]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                    {t.remark && (
-                      <p className="mt-1 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
-                        “{t.remark}”
-                      </p>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}

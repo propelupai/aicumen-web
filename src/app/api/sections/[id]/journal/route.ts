@@ -215,7 +215,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       await client.query(
         `INSERT INTO student_activity_journal
            (section_id, activity_id, student_user_id, level, remark, assessed_by, assessed_at)
-         VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $4 IS NULL THEN NULL ELSE NOW() END)
+         VALUES ($1, $2, $3, $4::text, $5, $6, CASE WHEN $4::text IS NULL THEN NULL ELSE NOW() END)
          ON CONFLICT (section_id, activity_id, student_user_id) DO UPDATE
            SET level = EXCLUDED.level,
                remark = EXCLUDED.remark,

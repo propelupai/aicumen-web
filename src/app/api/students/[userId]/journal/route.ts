@@ -47,8 +47,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ message: "Student not found" }, { status: 404 });
     }
 
-    // All journal rows for this student, scoped to the active school.
-    const scope = `j.student_user_id = $1 AND c.school_id = $2 AND j.level IS NOT NULL`;
+    // All journal rows for this student, scoped to the active school via
+    // section -> class -> school (chapters has no school_id).
+    const schoolScopeJoin = `JOIN sections sec ON sec.id = j.section_id
+         JOIN classes cl ON cl.id = sec.class_id`;
+    const scope = `j.student_user_id = $1 AND cl.school_id = $2 AND j.level IS NOT NULL`;
 
     const overallRes = await client.query(
       `SELECT COUNT(*) FILTER (WHERE j.level = 'got_answer')::int AS got_answer,
@@ -56,8 +59,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               COUNT(*) FILTER (WHERE j.level = 'able_to_teach')::int AS able_to_teach,
               COUNT(*)::int AS assessed
          FROM student_activity_journal j
-         JOIN activities a ON a.id = j.activity_id
-         JOIN chapters c ON c.id = a.chapter_id
+         ${schoolScopeJoin}
         WHERE ${scope}`,
       [studentId, schoolId],
     );
@@ -69,6 +71,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
               COUNT(*) FILTER (WHERE j.level = 'able_to_teach')::int AS able_to_teach,
               COUNT(*)::int AS assessed
          FROM student_activity_journal j
+         ${schoolScopeJoin}
          JOIN activities a ON a.id = j.activity_id
          JOIN chapters c ON c.id = a.chapter_id
          JOIN subjects su ON su.id = c.subject_id
@@ -82,8 +85,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       `SELECT m.grade, m.code, m.handbook_item, m.unit,
               ${RANK_CASE} AS best_rank
          FROM student_activity_journal j
-         JOIN activities a ON a.id = j.activity_id
-         JOIN chapters c ON c.id = a.chapter_id
+         ${schoolScopeJoin}
          JOIN activity_cbse_mandates acm ON acm.activity_id = j.activity_id
          JOIN cbse_mandates m
            ON m.grade = acm.mandate_grade AND m.code = acm.mandate_code

@@ -300,7 +300,10 @@ function StudentsTab() {
       });
       if (!res.ok) throw new Error("Failed to remove student");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/students"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/students"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sections/students"] });
+    },
   });
 
   return (
@@ -382,6 +385,7 @@ function StudentsTab() {
         onSuccess={() => {
           setAddOpen(false);
           queryClient.invalidateQueries({ queryKey: ["/api/students"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/sections/students"] });
         }}
       />
     </>

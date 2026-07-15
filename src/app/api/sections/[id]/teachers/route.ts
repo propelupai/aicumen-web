@@ -167,7 +167,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (selectedIds.length > 0) {
       await client.query(
         `INSERT INTO class_teacher_assignments (user_id, section_id, is_primary, assigned_by)
-         SELECT idv, $2, (idv = $3::uuid), $4
+         SELECT idv, $2, COALESCE(idv = $3::uuid, FALSE), $4
            FROM unnest($1::uuid[]) AS idv
          ON CONFLICT (user_id, section_id) DO UPDATE
            SET is_primary = EXCLUDED.is_primary`,

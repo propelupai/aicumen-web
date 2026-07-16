@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
+  /* The app is a hardcoded light theme (white cards, slate text). Pin the
+     color-scheme and palette to light so OS dark mode can't flip inherited
+     text/background colors and hide content (e.g. input text). */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -9,13 +13,6 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-plus-jakarta), ui-sans-serif, system-ui, sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

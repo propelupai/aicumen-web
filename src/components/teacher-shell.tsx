@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -326,10 +326,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
   const displayName = user.display_name || user.firebaseUser.email?.split("@")[0] || "Teacher";
   const roleLabel = formatUserRoleLabel(user);
   const profileActive = pathname === "/dashboard/profile";
-  const items = useMemo(
-    () => visibleNavItems(user),
-    [user.school_role_key, user.platform_role],
-  );
+  const items = visibleNavItems(user);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#f4f6f8] text-slate-900">

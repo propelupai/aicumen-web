@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
-import { getCurrentUser } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleIcon } from "@/components/google-icon";
 
@@ -40,8 +39,10 @@ export default function SignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Wait for full auth (session cookie + DB sync) — not just Firebase currentUser.
+  // Navigating earlier lets the proxy bounce to /login without a cookie.
   useEffect(() => {
-    if (getCurrentUser() || (!loading && user)) {
+    if (!loading && user) {
       router.replace("/dashboard/home");
     }
   }, [loading, user, router]);
@@ -108,8 +109,8 @@ export default function SignupPage() {
           throw firebaseErr;
         }
       }
-      toast({ title: "Welcome", description: "Account created and signed in." });
-      router.push("/dashboard/home");
+      toast({ title: "Welcome", description: "Account created. Signing you in…" });
+      // auth-context redirects after the session cookie + sync complete.
     } catch (error: unknown) {
       mapError(error);
     }
@@ -121,7 +122,8 @@ export default function SignupPage() {
     try {
       await createDbUser();
       await signIn();
-      router.push("/dashboard/home");
+      toast({ title: "Welcome", description: "Account created. Signing you in…" });
+      // auth-context redirects after the session cookie + sync complete.
     } catch (error: unknown) {
       mapError(error);
     }

@@ -155,12 +155,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const alreadySynced = firebaseUserRef.current?.uid === user.uid;
 
-      if (alreadySynced && pathname === "/login") {
-        router.replace("/dashboard/home");
-        setLoading(false);
-        return;
-      }
+      // Soft-nav bounces (e.g. signup → dashboard before cookie exists → /login)
+      // re-subscribe with the same Firebase uid. Never redirect until the
+      // session cookie (and DB sync) are confirmed — otherwise proxy sends us
+      // back to login.
       if (alreadySynced) {
+        if (pathname === "/login" || pathname === "/signup") {
+          try {
+            await retryOnTransient(async () => {
+              await establishSessionCookie(user);
+              await syncUserMutation.mutateAsync(user);
+            });
+            router.replace("/dashboard/home");
+          } catch (err: unknown) {
+            console.warn(
+              "[Auth] Could not re-establish session on login/signup:",
+              (err as { message?: string })?.message || err,
+            );
+          }
+        }
         setLoading(false);
         return;
       }

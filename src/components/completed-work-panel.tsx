@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import type { ActivityListItem } from "@/lib/activities";
+import type { ProgramTrack } from "@/lib/subjects";
 import { QuestCard } from "@/components/quest-card";
 
 type CatalogSubject = {
@@ -25,6 +26,7 @@ type CompletedResponse = {
     status: string;
     subject_id: number | null;
     q: string | null;
+    track?: string;
   };
 };
 
@@ -42,6 +44,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 type CompletedWorkPanelProps = {
   sectionId: number | null;
   grade: number | null;
+  programTrack: ProgramTrack;
   subjects: CatalogSubject[];
   subjectsLoading: boolean;
   ready: boolean;
@@ -51,6 +54,7 @@ type CompletedWorkPanelProps = {
 export function CompletedWorkPanel({
   sectionId,
   grade,
+  programTrack,
   subjects,
   subjectsLoading,
   ready,
@@ -60,20 +64,29 @@ export function CompletedWorkPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<HistoryStatus>("completed");
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
+  const isAi = programTrack === "ai";
+
+  useEffect(() => {
+    setSubjectId(null);
+    setSearchQuery("");
+  }, [programTrack]);
 
   const completedQueryKey = useMemo(
     () => [
       "/api/sections/completed",
       sectionId,
-      { subjectId, q: debouncedSearch.trim(), status: statusFilter },
+      { subjectId, q: debouncedSearch.trim(), status: statusFilter, track: programTrack },
     ],
-    [sectionId, subjectId, debouncedSearch, statusFilter],
+    [sectionId, subjectId, debouncedSearch, statusFilter, programTrack],
   );
 
   const { data, isLoading, isError } = useQuery<CompletedResponse>({
     queryKey: completedQueryKey,
     queryFn: async () => {
-      const params = new URLSearchParams({ status: statusFilter });
+      const params = new URLSearchParams({
+        status: statusFilter,
+        track: programTrack,
+      });
       if (subjectId) params.set("subject_id", String(subjectId));
       const q = debouncedSearch.trim();
       if (q) params.set("q", q);
@@ -95,10 +108,14 @@ export function CompletedWorkPanel({
         <div>
           <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
             Class history
+            <span className="ml-2 font-semibold tracking-normal text-teal-800 normal-case">
+              · {isAi ? "Artificial Intelligence" : "Computational Thinking"}
+            </span>
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Quests you&apos;ve run or marked complete for this section — filter by subject, status,
-            or search.
+            {isAi
+              ? "AI activities you’ve run or marked complete for this section — filter by status or search."
+              : "Quests you’ve run or marked complete for this section — filter by subject, status, or search."}
           </p>
         </div>
 
@@ -129,46 +146,49 @@ export function CompletedWorkPanel({
             </div>
           </div>
 
-          <div>
-            <span className="text-xs font-semibold text-slate-600">Lesson subject</span>
-            {subjectsLoading ? (
-              <div className="mt-2 flex justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
-              </div>
-            ) : (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSubjectId(null)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    subjectId === null
-                      ? "bg-teal-700 text-white"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  All subjects
-                </button>
-                {subjects.map((s) => (
+          {!isAi && (
+            <div>
+              <span className="text-xs font-semibold text-slate-600">Lesson subject</span>
+              {subjectsLoading ? (
+                <div className="mt-2 flex justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
-                    key={s.id}
                     type="button"
-                    onClick={() => setSubjectId(s.id)}
+                    onClick={() => setSubjectId(null)}
                     className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                      subjectId === s.id
+                      subjectId === null
                         ? "bg-teal-700 text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
-                    {s.name}
+                    All subjects
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                  {subjects.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSubjectId(s.id)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                        subjectId === s.id
+                          ? "bg-teal-700 text-white"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <label className="block">
             <span className="text-xs font-semibold text-slate-600">
-              Search quests{grade ? ` · Grade ${grade}` : ""}
+              Search {isAi ? "activities" : "quests"}
+              {grade ? ` · Grade ${grade}` : ""}
             </span>
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -176,7 +196,11 @@ export function CompletedWorkPanel({
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Quest title, chapter, theme, or activity type"
+                placeholder={
+                  isAi
+                    ? "Activity title, module, or theme"
+                    : "Quest title, chapter, theme, or activity type"
+                }
                 className="w-full rounded-lg border border-slate-200 py-2 pr-3 pl-9 text-sm text-slate-800 placeholder:text-slate-400"
               />
             </div>
@@ -189,15 +213,23 @@ export function CompletedWorkPanel({
           <div>
             <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
               {statusFilter === "completed"
-                ? "Completed quests"
+                ? isAi
+                  ? "Completed activities"
+                  : "Completed quests"
                 : statusFilter === "in_progress"
-                  ? "In-progress quests"
-                  : "Recorded quests"}
+                  ? isAi
+                    ? "In-progress activities"
+                    : "In-progress quests"
+                  : isAi
+                    ? "Recorded activities"
+                    : "Recorded quests"}
             </p>
             <p className="mt-1 text-sm text-slate-500">
               {isLoading
                 ? "Loading…"
-                : `${items.length} quest${items.length === 1 ? "" : "s"}`}
+                : `${items.length} ${isAi ? "activit" : "quest"}${
+                    items.length === 1 ? (isAi ? "y" : "") : isAi ? "ies" : "s"
+                  }`}
               {selectedSubject ? ` · ${selectedSubject.name}` : ""}
               {debouncedSearch.trim() ? ` · “${debouncedSearch.trim()}”` : ""}
             </p>
@@ -219,10 +251,14 @@ export function CompletedWorkPanel({
         ) : items.length === 0 ? (
           <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
             {statusFilter === "completed"
-              ? "No completed quests yet for this section."
+              ? isAi
+                ? "No completed AI activities yet for this section."
+                : "No completed quests yet for this section."
               : statusFilter === "in_progress"
-                ? "No quests in progress — start a live session from Find quests."
-                : "No recorded quest activity yet. Run a quest live and mark it complete at the end of class."}
+                ? "No items in progress — start a live session from Find quests."
+                : isAi
+                  ? "No recorded AI activity yet. Run an AI activity live and mark it complete at the end of class."
+                  : "No recorded quest activity yet. Run a quest live and mark it complete at the end of class."}
             {debouncedSearch.trim() || subjectId
               ? " Try clearing filters or switching status."
               : ""}

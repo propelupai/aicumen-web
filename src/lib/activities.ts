@@ -38,7 +38,7 @@ export type ActivityListItem = {
   subject_slug?: string;
   subject_name?: string;
   /** How this quest matched the teacher's lesson anchor */
-  match_source?: "cbse_chapter" | "ct_program";
+  match_source?: "cbse_chapter" | "ct_program" | "ai_program";
   activity_type?: string;
   enrichment_status?: string;
   chapter_dependent?: boolean;

@@ -9,7 +9,12 @@ import { QuestCard } from "@/components/quest-card";
 import { CompletedWorkPanel } from "@/components/completed-work-panel";
 import { firstName, getTimeGreeting } from "@/lib/quest-preview";
 import type { ActivityListItem } from "@/lib/activities";
-import { Building2, CheckCircle2, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  gradeSupportsAiTrack,
+  type ProgramTrack,
+  type SubjectKind,
+} from "@/lib/subjects";
+import { Building2, Brain, CheckCircle2, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 type HomeTab = "find" | "history";
 
@@ -26,7 +31,7 @@ type CatalogSubject = {
   name: string;
   grade_min: number;
   grade_max: number;
-  kind: "cbse_anchor";
+  kind: SubjectKind;
   has_published_quests: boolean;
 };
 
@@ -63,7 +68,7 @@ type TeacherSectionsResponse = {
 type ActivitiesResponse = {
   items: ActivityListItem[];
   total: number;
-  counts?: { cbse_chapter: number; ct_program: number };
+  counts?: { cbse_chapter: number; ct_program: number; ai_program?: number };
   filters: {
     grade: number | null;
     subject_id: number | null;
@@ -91,6 +96,7 @@ export default function DashboardHome() {
 
   const [sectionId, setSectionId] = useState<number | null>(null);
   const [homeTab, setHomeTab] = useState<HomeTab>("find");
+  const [programTrack, setProgramTrack] = useState<ProgramTrack>("ct");
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [chapterId, setChapterId] = useState<number | null>(null);
   const [mandateCode, setMandateCode] = useState<string | null>(null);
@@ -120,6 +126,8 @@ export default function DashboardHome() {
   const sections = teacherSections?.sections ?? [];
   const selectedSection = sections.find((s) => s.id === sectionId) ?? null;
   const grade = selectedSection?.grade ?? null;
+  const aiTrackAvailable = gradeSupportsAiTrack(grade);
+  const activeTrack: ProgramTrack = aiTrackAvailable ? programTrack : "ct";
 
   useEffect(() => {
     if (sectionId || sections.length === 0) return;
@@ -127,10 +135,17 @@ export default function DashboardHome() {
     setSectionId(primary.id);
   }, [sections, sectionId]);
 
+  useEffect(() => {
+    if (!aiTrackAvailable && programTrack === "ai") {
+      setProgramTrack("ct");
+    }
+  }, [aiTrackAvailable, programTrack]);
+
   const { data: subjects = [], isLoading: subjectsLoading } = useQuery<CatalogSubject[]>({
-    queryKey: ["/api/catalog/subjects"],
+    queryKey: ["/api/catalog/subjects", activeTrack],
     queryFn: async () => {
-      const res = await fetch("/api/catalog/subjects", { credentials: "include" });
+      const params = new URLSearchParams({ track: activeTrack });
+      const res = await fetch(`/api/catalog/subjects?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load subjects");
       return res.json();
     },
@@ -138,8 +153,15 @@ export default function DashboardHome() {
   });
 
   useEffect(() => {
-    if (subjectId || subjects.length === 0) return;
-    setSubjectId(subjects[0].id);
+    if (subjects.length === 0) {
+      setSubjectId(null);
+      return;
+    }
+    if (!subjectId || !subjects.some((s) => s.id === subjectId)) {
+      setSubjectId(subjects[0].id);
+      setChapterId(null);
+      setMandateCode(null);
+    }
   }, [subjects, subjectId]);
 
   const chapterSearch = debouncedTopic.trim();
@@ -171,9 +193,9 @@ export default function DashboardHome() {
   const activitiesQueryKey = useMemo(
     () => [
       "/api/activities",
-      { subjectId, chapterId, grade, sectionId, q: chapterSearch, mandateCode },
+      { subjectId, chapterId, grade, sectionId, q: chapterSearch, mandateCode, track: activeTrack },
     ],
-    [subjectId, chapterId, grade, sectionId, chapterSearch, mandateCode],
+    [subjectId, chapterId, grade, sectionId, chapterSearch, mandateCode, activeTrack],
   );
 
   const {
@@ -215,8 +237,9 @@ export default function DashboardHome() {
           {greeting}, {name}!
         </h1>
         <p className="mt-2 text-sm text-slate-600">
-          What did you teach in class today? Pick the lesson subject and chapter — we&apos;ll
-          surface Socratic CT quests anchored to that lesson.
+          {activeTrack === "ai"
+            ? "Browse Class AI Literacy modules — Socratic activities for what AI is, data, patterns, and digital responsibility."
+            : "What did you teach in class today? Pick the lesson subject and chapter — we\u2019ll surface Socratic CT quests anchored to that lesson."}
         </p>
       </section>
 
@@ -238,7 +261,9 @@ export default function DashboardHome() {
           <label className="block">
             <span className="text-xs font-semibold text-slate-600">Class section</span>
             {teacherSections?.source === "assigned" && (
-              <span className="ml-2 text-xs font-normal text-slate-400">· your assigned sections</span>
+              <span className="ml-2 text-xs font-normal text-slate-400">
+                · your assigned sections
+              </span>
             )}
             <select
               value={sectionId ?? ""}
@@ -246,6 +271,7 @@ export default function DashboardHome() {
                 const id = parseInt(e.target.value, 10);
                 setSectionId(Number.isInteger(id) ? id : null);
                 setChapterId(null);
+                setMandateCode(null);
               }}
               className="mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
             >
@@ -257,6 +283,83 @@ export default function DashboardHome() {
             </select>
           </label>
         </section>
+      )}
+
+      {aiTrackAvailable && (
+        <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Curriculum program">
+          <button
+            type="button"
+            onClick={() => {
+              setProgramTrack("ct");
+              setChapterId(null);
+              setMandateCode(null);
+              setTopicQuery("");
+            }}
+            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+              activeTrack === "ct"
+                ? "border-teal-600 bg-teal-700 text-white shadow-sm"
+                : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                  activeTrack === "ct" ? "bg-white/15" : "bg-teal-50 text-teal-700"
+                }`}
+              >
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold tracking-tight">
+                  Computational Thinking
+                </span>
+                <span
+                  className={`mt-1 block text-xs leading-snug ${
+                    activeTrack === "ct" ? "text-teal-50" : "text-slate-500"
+                  }`}
+                >
+                  Lesson-anchored Socratic quests for the chapter you taught today
+                </span>
+              </span>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setProgramTrack("ai");
+              setChapterId(null);
+              setMandateCode(null);
+              setTopicQuery("");
+            }}
+            className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+              activeTrack === "ai"
+                ? "border-teal-600 bg-teal-700 text-white shadow-sm"
+                : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                  activeTrack === "ai" ? "bg-white/15" : "bg-teal-50 text-teal-700"
+                }`}
+              >
+                <Brain className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-bold tracking-tight">
+                  Artificial Intelligence
+                </span>
+                <span
+                  className={`mt-1 block text-xs leading-snug ${
+                    activeTrack === "ai" ? "text-teal-50" : "text-slate-500"
+                  }`}
+                >
+                  Class AI Literacy modules — what AI is, data, patterns, and responsibility
+                </span>
+              </span>
+            </div>
+          </button>
+        </div>
       )}
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
@@ -290,6 +393,7 @@ export default function DashboardHome() {
         <CompletedWorkPanel
           sectionId={sectionId}
           grade={grade}
+          programTrack={activeTrack}
           subjects={subjects}
           subjectsLoading={subjectsLoading}
           ready={ready}
@@ -319,15 +423,23 @@ export default function DashboardHome() {
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
           <div className="space-y-4">
             <div>
-              <span className="text-xs font-semibold text-slate-600">Lesson subject (CBSE)</span>
+              <span className="text-xs font-semibold text-slate-600">
+                {activeTrack === "ai" ? "AI Literacy" : "Lesson subject (CBSE)"}
+              </span>
               {subjectsLoading ? (
                 <div className="mt-2 flex justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-teal-700" />
                 </div>
               ) : subjects.length === 0 ? (
                 <p className="mt-2 text-sm text-slate-500">
-                  No lesson subjects configured yet. Run migration 005 for Maths, English, Science,
-                  and Social Studies.
+                  {activeTrack === "ai"
+                    ? "AI curriculum not loaded yet. Run migrations 012 and 013."
+                    : "No lesson subjects configured yet. Run migration 005 for Maths, English, Science, and Social Studies."}
+                </p>
+              ) : activeTrack === "ai" ? (
+                <p className="mt-2 text-sm text-slate-600">
+                  {selectedSubject?.name ?? "Artificial Intelligence"}
+                  {grade ? ` · Grade ${grade}` : ""} — pick a module on the right.
                 </p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -356,7 +468,7 @@ export default function DashboardHome() {
           <div className="space-y-3">
             <label className="block">
               <span className="text-xs font-semibold text-slate-600">
-                Chapter or topic
+                {activeTrack === "ai" ? "Module or topic" : "Chapter or topic"}
                 {grade ? ` · Grade ${grade}` : ""}
               </span>
               <div className="relative mt-1">
@@ -369,9 +481,11 @@ export default function DashboardHome() {
                     setChapterId(null);
                   }}
                   placeholder={
-                    selectedSubject
-                      ? `e.g. ${selectedSubject.name === "Mathematics" ? "fractions" : "living things"}`
-                      : "Search chapter name or topic"
+                    activeTrack === "ai"
+                      ? 'e.g. "supervised", "password", "kirana"'
+                      : selectedSubject
+                        ? `e.g. ${selectedSubject.name === "Mathematics" || selectedSubject.name === "Maths" ? "fractions" : "living things"}`
+                        : "Search chapter name or topic"
                   }
                   className="w-full rounded-lg border border-slate-200 py-2 pr-3 pl-9 text-sm text-slate-800 placeholder:text-slate-400"
                 />
@@ -393,7 +507,7 @@ export default function DashboardHome() {
                       : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                   }`}
                 >
-                  All matching chapters
+                  {activeTrack === "ai" ? "All modules" : "All matching chapters"}
                 </button>
                 {chapters.map((ch) => (
                   <button
@@ -407,21 +521,27 @@ export default function DashboardHome() {
                     }`}
                     title={ch.anchor_curriculum ?? undefined}
                   >
-                    {ch.chapter_code} · {ch.title}
+                    {activeTrack === "ai" ? `Module ${ch.chapter_code}` : ch.chapter_code} ·{" "}
+                    {ch.title}
                     <span className="ml-1 text-slate-400">({ch.quest_count})</span>
                   </button>
                 ))}
               </div>
             ) : subjectId ? (
               <p className="text-xs text-slate-500">
-                No chapters found{chapterSearch ? ` for “${chapterSearch}”` : ""}.
-                {grade ? " Try clearing the search or check another subject." : ""}
+                No {activeTrack === "ai" ? "modules" : "chapters"} found
+                {chapterSearch ? ` for “${chapterSearch}”` : ""}.
+                {chapterSearch
+                  ? " Try clearing the search."
+                  : activeTrack === "ct" && grade
+                    ? " Try another subject."
+                    : ""}
               </p>
             ) : null}
           </div>
         </div>
 
-        {mandates.length > 0 && (
+        {activeTrack === "ct" && mandates.length > 0 && (
           <div className="mt-5 border-t border-slate-100 pt-4">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
@@ -470,20 +590,31 @@ export default function DashboardHome() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
-              Quests for this lesson
+              {activeTrack === "ai" ? "AI activities" : "Quests for this lesson"}
             </p>
             <p className="mt-1 text-sm text-slate-500">
               {activitiesLoading
                 ? "Loading…"
-                : `${activities.length} quest${activities.length === 1 ? "" : "s"}`}
+                : `${activities.length} ${activeTrack === "ai" ? "activit" : "quest"}${
+                    activities.length === 1
+                      ? activeTrack === "ai"
+                        ? "y"
+                        : ""
+                      : activeTrack === "ai"
+                        ? "ies"
+                        : "s"
+                  }`}
               {selectedSubject ? ` · ${selectedSubject.name}` : ""}
-              {selectedChapter ? ` · ${selectedChapter.title}` : ""}
+              {selectedChapter
+                ? ` · ${activeTrack === "ai" ? `Module ${selectedChapter.chapter_code}` : selectedChapter.title}`
+                : ""}
               {grade && !selectedChapter ? ` · Grade ${grade}` : ""}
               {selectedMandate ? ` · ${selectedMandate.code} ${selectedMandate.handbook_item}` : ""}
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Quests are Computational Thinking activities mapped to your lesson — not a separate
-              timetable subject. Search a chapter or topic to find matches.
+              {activeTrack === "ai"
+                ? "Each activity has a PROBLEM, Socratic ladder clues, and an EXTEND — same live-session flow as CT."
+                : "Quests are Computational Thinking activities mapped to your lesson — not a separate timetable subject. Search a chapter or topic to find matches."}
             </p>
           </div>
         </div>
@@ -498,14 +629,24 @@ export default function DashboardHome() {
           </p>
         ) : activities.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">
-            No quests yet for this {selectedSubject?.name ?? "subject"}
-            {chapterSearch ? ` and topic “${chapterSearch}”` : ""}
-            {grade ? ` (grade ${grade})` : ""}. Try searching a topic — e.g. &quot;pattern&quot; or
-            &quot;rangoli&quot; — to find CT quests from the problem bank.
+            {activeTrack === "ai" ? (
+              <>
+                No AI activities yet{grade ? ` for grade ${grade}` : ""}. Run migrations 012 and 013
+                to load the Class 6 AI Literacy bank.
+              </>
+            ) : (
+              <>
+                No quests yet for this {selectedSubject?.name ?? "subject"}
+                {chapterSearch ? ` and topic “${chapterSearch}”` : ""}
+                {grade ? ` (grade ${grade})` : ""}. Try searching a topic — e.g. &quot;pattern&quot; or
+                &quot;rangoli&quot; — to find CT quests from the problem bank.
+              </>
+            )}
           </p>
         ) : (
           <>
-            {(activitiesData?.counts?.ct_program ?? 0) > 0 &&
+            {activeTrack === "ct" &&
+              (activitiesData?.counts?.ct_program ?? 0) > 0 &&
               (activitiesData?.counts?.cbse_chapter ?? 0) === 0 && (
                 <p className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-900">
                   Showing CT program quests matched to your topic. Integrated-book sparks for{" "}

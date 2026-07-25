@@ -12,6 +12,7 @@ import {
   parseActivityMetadata,
 } from "@/lib/activities";
 import { activityMandatesJsonSql } from "@/lib/topic-search";
+import { AI_PROGRAM_SLUG } from "@/lib/subjects";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -56,6 +57,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const statusParam = request.nextUrl.searchParams.get("status")?.trim() ?? "completed";
     const subjectId = parseInt(request.nextUrl.searchParams.get("subject_id") ?? "", 10);
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+    const trackParam = request.nextUrl.searchParams.get("track")?.trim();
+    const track = trackParam === "ai" ? "ai" : "ct";
 
     if (!ALLOWED_STATUSES.has(statusParam) && statusParam !== "all") {
       return NextResponse.json({ message: "Invalid status filter" }, { status: 400 });
@@ -83,6 +86,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       values.push(statusParam);
     } else {
       conditions.push(`p.status <> 'not_started'`);
+    }
+
+    // Scope history to the selected curriculum program (CT vs AI).
+    if (track === "ai") {
+      conditions.push(`s.slug = $${idx++}`);
+      values.push(AI_PROGRAM_SLUG);
+    } else {
+      conditions.push(`s.slug <> $${idx++}`);
+      values.push(AI_PROGRAM_SLUG);
     }
 
     if (Number.isInteger(subjectId)) {
@@ -162,6 +174,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           status: statusParam,
           subject_id: Number.isInteger(subjectId) ? subjectId : null,
           q: q || null,
+          track,
         },
       },
       { status: 200 },

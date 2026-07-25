@@ -11,7 +11,7 @@ import {
   metadataToListFields,
   parseActivityMetadata,
 } from "@/lib/activities";
-import { CT_PROGRAM_SLUG } from "@/lib/subjects";
+import { AI_PROGRAM_SLUG, CT_PROGRAM_SLUG, subjectKindFromSlug } from "@/lib/subjects";
 import {
   activityMandateMatchSql,
   activityMandatesJsonSql,
@@ -61,7 +61,12 @@ function mapActivityRow(row: ActivityRow): ActivityListItem {
     subject_id: row.subject_id,
     subject_slug: row.subject_slug,
     subject_name: row.subject_name,
-    match_source: row.subject_slug === CT_PROGRAM_SLUG ? "ct_program" : "cbse_chapter",
+    match_source:
+      row.subject_slug === CT_PROGRAM_SLUG
+        ? "ct_program"
+        : row.subject_slug === AI_PROGRAM_SLUG
+          ? "ai_program"
+          : "cbse_chapter",
     activity_type: row.activity_type,
     enrichment_status: row.enrichment_status,
     chapter_dependent: row.chapter_dependent,
@@ -102,7 +107,9 @@ export async function GET(request: NextRequest) {
       anchorSubjectSlug = sub.rows[0]?.slug ?? null;
     }
 
-    const isCbseAnchor = anchorSubjectSlug != null && anchorSubjectSlug !== CT_PROGRAM_SLUG;
+    const anchorKind = anchorSubjectSlug ? subjectKindFromSlug(anchorSubjectSlug) : null;
+    const isAiProgram = anchorKind === "ai_program";
+    const isCbseAnchor = anchorKind === "cbse_anchor";
 
     function buildSchoolClause(startIdx: number): { join: string; conditions: string[]; values: unknown[] } {
       if (!sectionId || !Number.isInteger(sectionId) || !schoolId) {
@@ -124,10 +131,19 @@ export async function GET(request: NextRequest) {
     }
 
     async function queryIntegratedSparks(): Promise<ActivityListItem[]> {
-      const conditions = ["a.status = 'published'", `s.slug <> $1`];
-      const values: unknown[] = [CT_PROGRAM_SLUG];
-      let idx = 2;
+      // AI tab: only AI subject tree. CT tab: CBSE anchors (exclude ct + ai roots).
+      const conditions = ["a.status = 'published'"];
+      const values: unknown[] = [];
+      let idx = 1;
       let rankIdx: number | null = null;
+
+      if (isAiProgram) {
+        conditions.push(`s.slug = $${idx++}`);
+        values.push(AI_PROGRAM_SLUG);
+      } else {
+        conditions.push(`s.slug NOT IN ($${idx++}, $${idx++})`);
+        values.push(CT_PROGRAM_SLUG, AI_PROGRAM_SLUG);
+      }
 
       if (grade && Number.isInteger(grade)) {
         conditions.push(`c.grade = $${idx++}`);
@@ -308,7 +324,8 @@ export async function GET(request: NextRequest) {
     }
 
     const integrated = await queryIntegratedSparks();
-    const ctExtra = await queryCtProgramSparks();
+    // CT cross-match only when browsing a CBSE lesson — never on the AI tab.
+    const ctExtra = isAiProgram ? [] : await queryCtProgramSparks();
 
     const seen = new Set<number>();
     const items: ActivityListItem[] = [];
@@ -320,13 +337,14 @@ export async function GET(request: NextRequest) {
 
     const cbseCount = items.filter((i) => i.match_source === "cbse_chapter").length;
     const ctCount = items.filter((i) => i.match_source === "ct_program").length;
+    const aiCount = items.filter((i) => i.match_source === "ai_program").length;
     const first = items[0];
 
     return NextResponse.json(
       {
         items,
         total: items.length,
-        counts: { cbse_chapter: cbseCount, ct_program: ctCount },
+        counts: { cbse_chapter: cbseCount, ct_program: ctCount, ai_program: aiCount },
         filters: {
           grade: grade ?? null,
           subject_id: subjectId ?? null,
@@ -335,6 +353,7 @@ export async function GET(request: NextRequest) {
           q: q || null,
           mandate_code: mandateCode,
           anchor_subject_slug: anchorSubjectSlug,
+          program_track: isAiProgram ? "ai" : "ct",
           fuzzy: !!q,
         },
         chapter: first

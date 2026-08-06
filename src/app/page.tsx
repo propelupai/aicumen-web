@@ -140,8 +140,8 @@ export default function Home() {
 
               <ScrollReveal animation="fade-up" delay={120} duration={1000} once>
                 <h1 className="mt-5 text-4xl leading-tight font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-                  Give teachers a better question.{" "}
-                  <span className="text-teal-700">Never the answer.</span>
+                  Ask better questions.{" "}
+                  <span className="text-teal-700">Build better thinkers.</span>
                 </h1>
               </ScrollReveal>
 

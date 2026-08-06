@@ -72,6 +72,7 @@ async function main() {
 
   await pool.end();
   console.log("\nAll migrations complete.");
+  process.exit(0);
 }
 
 main().catch((err) => {

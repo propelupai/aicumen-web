@@ -159,7 +159,7 @@ export default function ContentStudioPage() {
         <p className="mt-2 text-sm text-slate-600">
           {isPlatformAdmin
             ? "Customize what teachers see at this school, or manage the global catalog (upload, review, publish)."
-            : "Choose which programs, subjects, modules, and quests your teachers see — and in what order. Changes apply only to this school."}
+            : "Choose which programs, subjects, modules, and quests your teachers see, and in what order. Changes apply only to this school."}
         </p>
         {user?.school_name && (
           <p className="mt-2 text-xs text-slate-500">

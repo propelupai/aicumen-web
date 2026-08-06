@@ -435,7 +435,7 @@ export function SchoolCustomizePanel() {
       <div className="rounded-2xl border border-teal-100 bg-teal-50/50 px-5 py-4 text-sm text-teal-950">
         Changes only affect teachers at{" "}
         <strong>{user?.school_name ?? "this school"}</strong>. Turning something Off hides it for
-        them; On/Off cascades — a subject Off hides its modules and quests even if those say On.
+        them. On/Off cascades: a subject Off hides its modules and quests even if those say On.
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -585,7 +585,7 @@ export function SchoolCustomizePanel() {
 
           <ProgramTreeGroup
             title="Artificial Intelligence"
-            subtitle="AI Literacy modules — same tree teachers see on the AI tab."
+            subtitle="AI Literacy modules: same tree teachers see on the AI tab."
             icon={<Brain className="h-4 w-4 text-teal-700" />}
             programEnabled={prefs?.programs_ai_enabled !== false}
             subjects={aiSubjects}
@@ -663,7 +663,7 @@ function ProgramTreeGroup({
         </div>
         {!programEnabled && (
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-            Program off — hidden on dashboard
+            Program off: hidden on dashboard
           </span>
         )}
       </div>

@@ -20,6 +20,7 @@ import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { ACADEMIC_YEAR_OPTIONS } from "@/lib/school-partner";
 
 type AcademicYear = {
   id: number;
@@ -83,7 +84,7 @@ export default function SchoolSetupPage() {
   const canWrite = !!user && user.account_type !== "student";
   const canManageTeachers = isAdmin;
 
-  const [yearLabel, setYearLabel] = useState("2025-26");
+  const [yearLabel, setYearLabel] = useState<string>("2026-27");
   const [classModalOpen, setClassModalOpen] = useState(false);
   const [sectionModalClass, setSectionModalClass] = useState<ClassRow | null>(null);
   const [sectionDetail, setSectionDetail] = useState<SectionDetailTarget | null>(null);
@@ -234,7 +235,7 @@ export default function SchoolSetupPage() {
               Customize curriculum for our school
             </span>
             <span className="mt-1 block text-sm text-teal-900/80">
-              Turn programs, subjects, modules, and quests on or off — and drag to reorder. Applies
+              Turn programs, subjects, modules, and quests on or off, and drag to reorder. Applies
               to every teacher at this school.
             </span>
           </span>
@@ -255,13 +256,18 @@ export default function SchoolSetupPage() {
         )}
         {canWrite && (
           <form onSubmit={handleCreateYear} className="mt-4 flex gap-2">
-            <input
-              type="text"
+            <select
               value={yearLabel}
               onChange={(e) => setYearLabel(e.target.value)}
-              placeholder="2025-26"
               className="rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-            />
+              aria-label="Academic year"
+            >
+              {ACADEMIC_YEAR_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
             <button
               type="submit"
               disabled={createYear.isPending || !yearLabel.trim()}

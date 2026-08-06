@@ -1,26 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
   Building2,
+  Check,
   ChevronDown,
   ClipboardList,
   GraduationCap,
   LayoutDashboard,
   Loader2,
+  LogOut,
   MoreHorizontal,
   PlayCircle,
   Shield,
+  UserRound,
   Users,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { ActiveSessionBar } from "@/components/active-session-bar";
+import { DedicatedAdvisorButton, PartnerBadge } from "@/components/school-partner-chrome";
 import { formatUserRoleLabel } from "@/lib/user-profile";
 
 type NavItem = {
@@ -284,10 +288,182 @@ function MoreMenu({
   );
 }
 
+/**
+ * Combined account menu: profile, school switcher, and sign out live under the
+ * user's name/avatar to keep the top bar uncluttered. Switching schools does a
+ * full page reload so every part of the UI reflects the new school.
+ */
+function UserMenu({
+  displayName,
+  roleLabel,
+  photoUrl,
+  activeSchoolId,
+  schools,
+  profileActive,
+  onSignOut,
+}: {
+  displayName: string;
+  roleLabel: string;
+  photoUrl: string | null;
+  activeSchoolId: number | null;
+  schools: MySchool[];
+  profileActive: boolean;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  async function switchSchool(schoolId: number) {
+    if (schoolId === activeSchoolId || switchingTo !== null) return;
+    setSwitchingTo(schoolId);
+    try {
+      const res = await fetch("/api/users/switch-school", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ school_id: schoolId }),
+      });
+      if (!res.ok) {
+        setSwitchingTo(null);
+        return;
+      }
+      // Full reload so the header, nav, and every page pick up the new school.
+      window.location.reload();
+    } catch {
+      setSwitchingTo(null);
+    }
+  }
+
+  const showSwitcher = schools.length > 1;
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
+        className={`flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-2 pl-1 transition-colors ${
+          open || profileActive ? "bg-teal-50 ring-1 ring-teal-200" : "hover:bg-slate-50"
+        }`}
+      >
+        <UserAvatar name={displayName} photoUrl={photoUrl} />
+        <span className="hidden min-w-0 text-left sm:block">
+          <span className="block truncate text-sm font-semibold text-slate-900">
+            {displayName}
+          </span>
+          <span className="block text-xs text-slate-500">{roleLabel}</span>
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute top-[calc(100%+0.375rem)] right-0 z-50 w-64 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg ring-1 ring-black/5"
+        >
+          {/* Non-interactive account header so menu items below read as actions. */}
+          <div className="flex items-center gap-2.5 border-b border-slate-100 px-3 pt-1 pb-2.5">
+            <UserAvatar name={displayName} photoUrl={photoUrl} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+              <p className="truncate text-xs text-slate-500">{roleLabel}</p>
+            </div>
+          </div>
+
+          <div className="pt-1.5">
+            <Link
+              href="/dashboard/profile"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={`mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+                profileActive
+                  ? "bg-teal-50 text-teal-900"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <UserRound
+                className={`h-4 w-4 shrink-0 ${profileActive ? "text-teal-700" : "text-slate-400"}`}
+              />
+              View profile
+            </Link>
+          </div>
+
+          {showSwitcher && (
+            <div className="mt-1 border-t border-slate-100 pt-1.5">
+              <p className="px-3 pb-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                Switch school
+              </p>
+              {schools.map((s) => {
+                const active = s.id === activeSchoolId;
+                const pending = switchingTo === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="menuitem"
+                    disabled={switchingTo !== null}
+                    onClick={() => switchSchool(s.id)}
+                    className={`mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium transition-colors disabled:opacity-60 ${
+                      active ? "bg-teal-50/60 text-teal-900" : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                  >
+                    <Building2
+                      className={`h-4 w-4 shrink-0 ${active ? "text-teal-700" : "text-slate-400"}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                    {pending ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-teal-700" />
+                    ) : active ? (
+                      <Check className="h-4 w-4 shrink-0 text-teal-700" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-1 border-t border-slate-100 pt-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onSignOut();
+              }}
+              className="mx-1.5 flex w-[calc(100%-0.75rem)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+            >
+              <LogOut className="h-4 w-4 shrink-0 text-red-500" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TeacherShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const { user, signOut, loading } = useAuth();
 
   const { data: mySchools = [] } = useQuery<MySchool[]>({
@@ -299,21 +475,6 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
     },
     enabled: !!user,
   });
-
-  const showSchoolSwitcher = mySchools.length > 1;
-
-  async function handleSwitchSchool(schoolId: number) {
-    if (!user || schoolId === user.school_id) return;
-    const res = await fetch("/api/users/switch-school", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ school_id: schoolId }),
-    });
-    if (!res.ok) return;
-    await queryClient.invalidateQueries();
-    router.refresh();
-  }
 
   if (loading || !user) {
     return (
@@ -344,9 +505,10 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
               {user.school_name && (
                 <>
                   <div className="hidden h-5 w-px bg-slate-200 sm:block" aria-hidden />
-                  <p className="hidden truncate text-sm text-slate-500 sm:block">
-                    {user.school_name}
-                  </p>
+                  <div className="hidden min-w-0 items-center gap-2 sm:flex">
+                    <p className="truncate text-sm text-slate-500">{user.school_name}</p>
+                    <PartnerBadge />
+                  </div>
                 </>
               )}
             </div>
@@ -356,42 +518,16 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center justify-between gap-2 lg:shrink-0 lg:justify-end">
-              <Link
-                href="/dashboard/profile"
-                className={`flex min-w-0 items-center gap-2.5 rounded-lg px-2 py-1 transition-colors ${
-                  profileActive ? "bg-teal-50 ring-1 ring-teal-200" : "hover:bg-slate-50"
-                }`}
-                aria-current={profileActive ? "page" : undefined}
-              >
-                <UserAvatar name={displayName} photoUrl={user.photo_url} />
-                <div className="min-w-0 hidden sm:block">
-                  <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
-                  <p className="text-xs text-slate-500">{roleLabel}</p>
-                </div>
-              </Link>
-              <div className="flex items-center gap-2">
-                {showSchoolSwitcher && (
-                  <select
-                    value={user.school_id ?? ""}
-                    onChange={(e) => handleSwitchSchool(parseInt(e.target.value, 10))}
-                    className="max-w-[9rem] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-                    aria-label="Switch school"
-                  >
-                    {mySchools.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <button
-                  type="button"
-                  onClick={() => signOut()}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
-                >
-                  Sign out
-                </button>
-              </div>
+              <DedicatedAdvisorButton />
+              <UserMenu
+                displayName={displayName}
+                roleLabel={roleLabel}
+                photoUrl={user.photo_url ?? null}
+                activeSchoolId={user.school_id}
+                schools={mySchools}
+                profileActive={profileActive}
+                onSignOut={() => signOut()}
+              />
             </div>
           </div>
         </div>

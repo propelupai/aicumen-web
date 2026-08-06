@@ -15,7 +15,8 @@ import {
   type SubjectKind,
 } from "@/lib/subjects";
 import type { SchoolPreferences } from "@/lib/school-overlays";
-import { Building2, Brain, CheckCircle2, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { Building2, Brain, CheckCircle2, Circle, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
+import { PartnerBadge, FeedbackDialog } from "@/components/school-partner-chrome";
 
 type HomeTab = "find" | "history";
 
@@ -104,6 +105,8 @@ export default function DashboardHome() {
   const [mandateCode, setMandateCode] = useState<string | null>(null);
   const [topicQuery, setTopicQuery] = useState("");
   const debouncedTopic = useDebouncedValue(topicQuery, 300);
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const { data: overview, isLoading: overviewLoading } = useQuery<Overview>({
     queryKey: ["/api/school/overview"],
@@ -265,27 +268,46 @@ export default function DashboardHome() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+        <PartnerBadge variant="banner" className="mb-4" />
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           {greeting}, {name}!
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          {activeTrack === "ai"
-            ? "Browse Class AI Literacy modules — Socratic activities for what AI is, data, patterns, and digital responsibility."
-            : "What did you teach in class today? Pick the lesson subject and chapter — we\u2019ll surface Socratic CT quests anchored to that lesson."}
-        </p>
-        {isSchoolAdmin && (
-          <p className="mt-2 text-xs text-slate-500">
+        {user?.welcome_blurb ? (
+          <p className="mt-2 text-sm text-slate-600">{user.welcome_blurb}</p>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">
+            {activeTrack === "ai"
+              ? "Browse Class AI Literacy modules: Socratic activities for what AI is, data, patterns, and digital responsibility."
+              : "What did you teach in class today? Pick the lesson subject and chapter. We'll surface Socratic CT quests anchored to that lesson."}
+          </p>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          {isSchoolAdmin && (
             <Link
               href="/dashboard/content"
               className="font-semibold text-teal-800 underline-offset-2 hover:underline"
             >
               Customize curriculum for your school
             </Link>
-          </p>
-        )}
+          )}
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            className="font-semibold text-teal-800 underline-offset-2 hover:underline"
+          >
+            Share feedback
+          </button>
+        </div>
       </section>
 
-      {!overviewLoading && !ready && (
+      {isSchoolAdmin && !overviewLoading && (
+        <AdminSetupChecklist
+          hasYear={!!overview?.academic_year}
+          hasSection={(overview?.section_count ?? 0) > 0}
+        />
+      )}
+
+      {!overviewLoading && !ready && !isSchoolAdmin && (
         <div className="rounded-xl border border-amber-200/70 bg-amber-50/40 px-5 py-4 text-sm text-amber-950">
           Complete{" "}
           <Link
@@ -297,6 +319,8 @@ export default function DashboardHome() {
           (academic year + sections) before running live sessions with your class.
         </div>
       )}
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       {sections.length > 0 && (
         <section className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
@@ -719,6 +743,79 @@ export default function DashboardHome() {
       </section>
         </>
       )}
+    </div>
+  );
+}
+
+function AdminSetupChecklist({
+  hasYear,
+  hasSection,
+}: {
+  hasYear: boolean;
+  hasSection: boolean;
+}) {
+  const steps = [
+    {
+      id: "year",
+      done: hasYear,
+      label: "Set the academic year",
+      href: "/dashboard/school",
+    },
+    {
+      id: "section",
+      done: hasSection,
+      label: "Add at least one class section",
+      href: "/dashboard/school",
+    },
+    {
+      id: "invite",
+      done: false,
+      optional: true,
+      label: "Invite teachers (People)",
+      href: "/dashboard/access",
+    },
+    {
+      id: "customize",
+      done: false,
+      optional: true,
+      label: "Customize CT / AI for your school",
+      href: "/dashboard/content",
+    },
+  ] as const;
+
+  const requiredDone = hasYear && hasSection;
+  if (requiredDone) return null;
+
+  return (
+    <div className="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-900">Launch checklist</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Finish these so teachers can run live sessions.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {steps.map((step) => (
+          <li key={step.id}>
+            <Link
+              href={step.href}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              {step.done ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-teal-600" />
+              ) : (
+                <Circle className="h-4 w-4 shrink-0 text-slate-300" />
+              )}
+              <span className={step.done ? "text-slate-500 line-through" : "font-medium"}>
+                {step.label}
+              </span>
+              {"optional" in step && step.optional && !step.done ? (
+                <span className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                  optional
+                </span>
+              ) : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

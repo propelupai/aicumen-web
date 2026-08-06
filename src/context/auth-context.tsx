@@ -29,6 +29,11 @@ interface AuthUser {
   display_name?: string;
   photo_url?: string | null;
   school_name?: string | null;
+  partner_label?: string | null;
+  welcome_blurb?: string | null;
+  poc_name?: string | null;
+  poc_email?: string | null;
+  poc_title?: string | null;
   firebase_uid?: string | null;
 }
 
@@ -344,6 +349,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           display_name: authUser.display_name,
           photo_url: authUser.photo_url ?? undefined,
           school_name: authUser.school_name ?? null,
+          partner_label: authUser.partner_label ?? null,
+          welcome_blurb: authUser.welcome_blurb ?? null,
+          poc_name: authUser.poc_name ?? null,
+          poc_email: authUser.poc_email ?? null,
+          poc_title: authUser.poc_title ?? null,
           firebase_uid: authUser.firebase_uid ?? firebaseUser.uid ?? null,
         }
       : null;

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,22 @@ interface FormErrors {
   confirm_password?: string;
 }
 
+type SchoolLookup = {
+  id: number;
+  name: string;
+  partner_label: string | null;
+  welcome_blurb: string | null;
+};
+
+function useDebounced(value: string, ms: number) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -38,6 +54,21 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const debouncedCode = useDebounced(formData.signup_code.trim(), 350);
+
+  const { data: schoolLookup, isFetching: lookupLoading } = useQuery<SchoolLookup | null>({
+    queryKey: ["/api/schools/lookup", debouncedCode],
+    queryFn: async () => {
+      if (!debouncedCode) return null;
+      const res = await fetch(`/api/schools/lookup?code=${encodeURIComponent(debouncedCode)}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Lookup failed");
+      return res.json();
+    },
+    enabled: debouncedCode.length >= 3,
+    retry: false,
+  });
 
   // Wait for full auth (session cookie + DB sync) — not just Firebase currentUser.
   // Navigating earlier lets the proxy bounce to /login without a cookie.
@@ -171,6 +202,41 @@ export default function SignupPage() {
           )}
 
           <div>
+            <label htmlFor="signup_code" className="mb-1 block text-sm font-medium text-slate-700">
+              Sign Up Code
+            </label>
+            <input
+              id="signup_code"
+              type="text"
+              placeholder="Enter the sign-up code from your school"
+              value={formData.signup_code}
+              onChange={(e) => handleInputChange("signup_code", e.target.value)}
+              required
+              className={inputClass(errors.signup_code)}
+            />
+            {errors.signup_code && <p className="mt-1 text-sm text-red-500">{errors.signup_code}</p>}
+            {lookupLoading && debouncedCode.length >= 3 && (
+              <p className="mt-1.5 text-xs text-slate-400">Looking up school…</p>
+            )}
+            {!lookupLoading && schoolLookup && (
+              <div className="mt-2 rounded-xl border border-teal-100 bg-teal-50/60 px-3 py-2.5 text-left">
+                <p className="text-sm font-semibold text-teal-950">
+                  You&apos;re joining {schoolLookup.name}
+                  {schoolLookup.partner_label
+                    ? `, an AICUMEN ${schoolLookup.partner_label}.`
+                    : "."}
+                </p>
+                {schoolLookup.welcome_blurb ? (
+                  <p className="mt-1 text-xs text-teal-900/80">{schoolLookup.welcome_blurb}</p>
+                ) : null}
+              </div>
+            )}
+            {!lookupLoading && debouncedCode.length >= 3 && schoolLookup === null && (
+              <p className="mt-1.5 text-xs text-amber-700">No active school found for that code.</p>
+            )}
+          </div>
+
+          <div>
             <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
               Email
             </label>
@@ -200,22 +266,6 @@ export default function SignupPage() {
               className={inputClass(errors.display_name)}
             />
             {errors.display_name && <p className="mt-1 text-sm text-red-500">{errors.display_name}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="signup_code" className="mb-1 block text-sm font-medium text-slate-700">
-              Sign Up Code
-            </label>
-            <input
-              id="signup_code"
-              type="text"
-              placeholder="Enter the sign-up code from your school"
-              value={formData.signup_code}
-              onChange={(e) => handleInputChange("signup_code", e.target.value)}
-              required
-              className={inputClass(errors.signup_code)}
-            />
-            {errors.signup_code && <p className="mt-1 text-sm text-red-500">{errors.signup_code}</p>}
           </div>
 
           <button

@@ -16,7 +16,12 @@ export async function GET(request: NextRequest) {
               COALESCE(u.account_type, 'teacher') AS account_type,
               u.platform_role,
               us.role_key AS school_role_key,
-              s.name AS school_name
+              s.name AS school_name,
+              s.partner_label,
+              s.welcome_blurb,
+              s.poc_name,
+              s.poc_email,
+              s.poc_title
          FROM users u
          LEFT JOIN schools s ON s.id = u.school_id
          LEFT JOIN user_schools us

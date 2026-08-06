@@ -11,6 +11,10 @@ import {
   hasPermission,
   requirePermission,
 } from "@/lib/rbac";
+import {
+  schoolActivitySortSql,
+  schoolActivityVisibleSql,
+} from "@/lib/school-overlays";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -69,7 +73,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const conditions = ["a.status = 'published'"];
+    const conditions = ["a.status = 'published'", schoolActivityVisibleSql("$1", "a", "c", "s")];
     const values: unknown[] = [schoolId, sectionId];
     let idx = 3;
 
@@ -84,28 +88,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
       }
     }
 
+    const activitySort = schoolActivitySortSql("$1", "a");
+
     const activities = await client.query(
       `SELECT a.id,
               a.title,
               a.slug,
               c.chapter_code,
               c.title AS chapter_title,
-              COALESCE(scs.is_enabled, TRUE) AS is_enabled,
+              TRUE AS is_enabled,
               COALESCE(p.status, 'not_started') AS progress_status,
               p.completed_at,
               p.notes
          FROM activities a
          JOIN chapters c ON c.id = a.chapter_id
-         LEFT JOIN school_content_settings scs
-           ON scs.activity_id = a.id AND scs.school_id = $1
+         JOIN subjects s ON s.id = c.subject_id
          LEFT JOIN section_activity_progress p
            ON p.activity_id = a.id AND p.section_id = $2
         WHERE ${conditions.join(" AND ")}
-        ORDER BY a.sort_order, a.id`,
+        ORDER BY ${activitySort}, a.id`,
       values,
     );
 
-    const enabled = activities.rows.filter((r) => r.is_enabled !== false);
+    const enabled = activities.rows;
     const completed = enabled.filter((r) => r.progress_status === "completed").length;
 
     return NextResponse.json(

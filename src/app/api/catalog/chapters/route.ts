@@ -4,19 +4,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getAuthUser } from "@/lib/getAuthUser";
 import { apiErrorResponse } from "@/lib/api-error";
-import { assertTeacherAccount } from "@/lib/rbac";
+import { assertActiveSchool, assertTeacherAccount } from "@/lib/rbac";
 import {
   bindTopicSearch,
   chapterTopicMatchSql,
   chapterTopicRankSql,
 } from "@/lib/topic-search";
+import {
+  schoolActivityVisibleSql,
+  schoolChapterEnabledSql,
+  schoolChapterSortSql,
+  schoolSubjectEnabledSql,
+} from "@/lib/school-overlays";
 
-/** CBSE anchor chapters for lesson mapping — with or without published quests yet. */
+/** Chapters for lesson mapping — school overlays applied to visibility + counts. */
 export async function GET(request: NextRequest) {
   let client;
   try {
     const auth = await getAuthUser(request);
     assertTeacherAccount(auth);
+    const schoolId = assertActiveSchool(auth);
 
     const subjectId = parseInt(request.nextUrl.searchParams.get("subject_id") ?? "", 10);
     const grade = parseInt(request.nextUrl.searchParams.get("grade") ?? "", 10);
@@ -26,9 +33,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "subject_id is required" }, { status: 400 });
     }
 
-    const conditions = ["c.subject_id = $1"];
-    const values: unknown[] = [subjectId];
-    let idx = 2;
+    const schoolParam = "$1";
+    const conditions = [
+      `c.subject_id = $2`,
+      schoolSubjectEnabledSql(schoolParam, "s"),
+      schoolChapterEnabledSql(schoolParam, "c"),
+    ];
+    const values: unknown[] = [schoolId, subjectId];
+    let idx = 3;
     let rankIdx: number | null = null;
 
     if (Number.isInteger(grade)) {
@@ -42,9 +54,13 @@ export async function GET(request: NextRequest) {
       idx = binds.rawIdx + 1;
     }
 
-    const orderBy = q && rankIdx != null
-      ? `${chapterTopicRankSql("c", rankIdx)} DESC, c.grade, c.chapter_code`
-      : "c.grade, c.chapter_code";
+    const chapterSort = schoolChapterSortSql(schoolParam, "c");
+    const orderBy =
+      q && rankIdx != null
+        ? `${chapterTopicRankSql("c", rankIdx)} DESC, ${chapterSort}, c.chapter_code`
+        : `${chapterSort}, c.grade, c.chapter_code`;
+
+    const visible = schoolActivityVisibleSql(schoolParam, "a", "c", "s");
 
     client = await pool.connect();
     const result = await client.query(
@@ -56,8 +72,11 @@ export async function GET(request: NextRequest) {
               c.anchor_reference,
               (SELECT COUNT(*)::int
                  FROM activities a
-                WHERE a.chapter_id = c.id AND a.status = 'published') AS quest_count
+                WHERE a.chapter_id = c.id
+                  AND a.status = 'published'
+                  AND ${visible}) AS quest_count
          FROM chapters c
+         JOIN subjects s ON s.id = c.subject_id
         WHERE ${conditions.join(" AND ")}
         ORDER BY ${orderBy}`,
       values,

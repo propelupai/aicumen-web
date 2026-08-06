@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/journal", label: "Journal", icon: ClipboardList },
   { href: "/dashboard/school", label: "Setup", icon: Building2 },
   { href: "/dashboard/access", label: "People", icon: Shield, adminOnly: true },
-  { href: "/dashboard/content", label: "Content", icon: BookOpen, contentAccess: true },
+  { href: "/dashboard/content", label: "Customize", icon: BookOpen, contentAccess: true },
 ];
 
 const comingSoonItems: { label: string; icon: LucideIcon; hint: string }[] = [

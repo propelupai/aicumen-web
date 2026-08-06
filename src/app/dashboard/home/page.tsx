@@ -14,6 +14,7 @@ import {
   type ProgramTrack,
   type SubjectKind,
 } from "@/lib/subjects";
+import type { SchoolPreferences } from "@/lib/school-overlays";
 import { Building2, Brain, CheckCircle2, Loader2, Search, ShieldCheck, Sparkles } from "lucide-react";
 
 type HomeTab = "find" | "history";
@@ -97,6 +98,7 @@ export default function DashboardHome() {
   const [sectionId, setSectionId] = useState<number | null>(null);
   const [homeTab, setHomeTab] = useState<HomeTab>("find");
   const [programTrack, setProgramTrack] = useState<ProgramTrack>("ct");
+  const [prefsSeeded, setPrefsSeeded] = useState(false);
   const [subjectId, setSubjectId] = useState<number | null>(null);
   const [chapterId, setChapterId] = useState<number | null>(null);
   const [mandateCode, setMandateCode] = useState<string | null>(null);
@@ -108,6 +110,16 @@ export default function DashboardHome() {
     queryFn: async () => {
       const res = await fetch("/api/school/overview", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load overview");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const { data: schoolPrefs } = useQuery<SchoolPreferences>({
+    queryKey: ["/api/school/preferences"],
+    queryFn: async () => {
+      const res = await fetch("/api/school/preferences", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load preferences");
       return res.json();
     },
     enabled: !!user,
@@ -126,8 +138,16 @@ export default function DashboardHome() {
   const sections = teacherSections?.sections ?? [];
   const selectedSection = sections.find((s) => s.id === sectionId) ?? null;
   const grade = selectedSection?.grade ?? null;
-  const aiTrackAvailable = gradeSupportsAiTrack(grade);
-  const activeTrack: ProgramTrack = aiTrackAvailable ? programTrack : "ct";
+  const ctProgramEnabled = schoolPrefs?.programs_ct_enabled !== false;
+  const aiProgramEnabled =
+    schoolPrefs?.programs_ai_enabled !== false && gradeSupportsAiTrack(grade);
+  const showProgramSwitcher = ctProgramEnabled && aiProgramEnabled;
+  const activeTrack: ProgramTrack = (() => {
+    if (programTrack === "ai" && aiProgramEnabled) return "ai";
+    if (programTrack === "ct" && ctProgramEnabled) return "ct";
+    if (aiProgramEnabled && !ctProgramEnabled) return "ai";
+    return "ct";
+  })();
 
   useEffect(() => {
     if (sectionId || sections.length === 0) return;
@@ -136,10 +156,20 @@ export default function DashboardHome() {
   }, [sections, sectionId]);
 
   useEffect(() => {
-    if (!aiTrackAvailable && programTrack === "ai") {
+    if (!schoolPrefs || prefsSeeded) return;
+    const preferred = schoolPrefs.default_program_track;
+    if (preferred === "ai" && schoolPrefs.programs_ai_enabled !== false) {
+      setProgramTrack("ai");
+    } else {
       setProgramTrack("ct");
     }
-  }, [aiTrackAvailable, programTrack]);
+    setPrefsSeeded(true);
+  }, [schoolPrefs, prefsSeeded]);
+
+  useEffect(() => {
+    if (programTrack === "ai" && !aiProgramEnabled) setProgramTrack("ct");
+    if (programTrack === "ct" && !ctProgramEnabled && aiProgramEnabled) setProgramTrack("ai");
+  }, [aiProgramEnabled, ctProgramEnabled, programTrack]);
 
   const { data: subjects = [], isLoading: subjectsLoading } = useQuery<CatalogSubject[]>({
     queryKey: ["/api/catalog/subjects", activeTrack],
@@ -224,6 +254,8 @@ export default function DashboardHome() {
   const selectedSubject = subjects.find((s) => s.id === subjectId);
   const selectedChapter = chapters.find((c) => c.id === chapterId);
   const selectedMandate = mandates.find((m) => m.code === mandateCode);
+  const isSchoolAdmin =
+    user?.school_role_key === "school_admin" || user?.platform_role === "platform_admin";
 
   function handleRun(activityId: number) {
     const params = sectionId ? `?sectionId=${sectionId}` : "";
@@ -241,6 +273,16 @@ export default function DashboardHome() {
             ? "Browse Class AI Literacy modules — Socratic activities for what AI is, data, patterns, and digital responsibility."
             : "What did you teach in class today? Pick the lesson subject and chapter — we\u2019ll surface Socratic CT quests anchored to that lesson."}
         </p>
+        {isSchoolAdmin && (
+          <p className="mt-2 text-xs text-slate-500">
+            <Link
+              href="/dashboard/content"
+              className="font-semibold text-teal-800 underline-offset-2 hover:underline"
+            >
+              Customize curriculum for your school
+            </Link>
+          </p>
+        )}
       </section>
 
       {!overviewLoading && !ready && (
@@ -285,7 +327,7 @@ export default function DashboardHome() {
         </section>
       )}
 
-      {aiTrackAvailable && (
+      {showProgramSwitcher && (
         <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Curriculum program">
           <button
             type="button"
@@ -360,6 +402,15 @@ export default function DashboardHome() {
             </div>
           </button>
         </div>
+      )}
+
+      {!showProgramSwitcher && (ctProgramEnabled || aiProgramEnabled) && (
+        <p className="text-xs font-semibold tracking-wide text-teal-800">
+          {activeTrack === "ai" ? "Artificial Intelligence" : "Computational Thinking"}
+          <span className="ml-2 font-normal text-slate-500">
+            · curriculum set by your school
+          </span>
+        </p>
       )}
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">

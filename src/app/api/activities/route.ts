@@ -13,6 +13,10 @@ import {
 } from "@/lib/activities";
 import { AI_PROGRAM_SLUG, CT_PROGRAM_SLUG, subjectKindFromSlug } from "@/lib/subjects";
 import {
+  schoolActivitySortSql,
+  schoolActivityVisibleSql,
+} from "@/lib/school-overlays";
+import {
   activityMandateMatchSql,
   activityMandatesJsonSql,
   activityTopicMatchSql,
@@ -111,23 +115,33 @@ export async function GET(request: NextRequest) {
     const isAiProgram = anchorKind === "ai_program";
     const isCbseAnchor = anchorKind === "cbse_anchor";
 
-    function buildSchoolClause(startIdx: number): { join: string; conditions: string[]; values: unknown[] } {
-      if (!sectionId || !Number.isInteger(sectionId) || !schoolId) {
-        return { join: "", conditions: [], values: [] };
+    function buildSchoolClause(startIdx: number): {
+      join: string;
+      conditions: string[];
+      values: unknown[];
+      schoolParam: string | null;
+    } {
+      if (!schoolId || !Number.isInteger(schoolId)) {
+        return { join: "", conditions: [], values: [], schoolParam: null };
       }
-      return {
-        join: `LEFT JOIN school_content_settings scs
-                 ON scs.activity_id = a.id AND scs.school_id = $${startIdx}`,
-        conditions: [
-          `COALESCE(scs.is_enabled, TRUE) = TRUE`,
+      const schoolParam = `$${startIdx}`;
+      const conditions = [schoolActivityVisibleSql(schoolParam, "a", "c", "s")];
+      const values: unknown[] = [schoolId];
+      let next = startIdx + 1;
+
+      if (sectionId && Number.isInteger(sectionId)) {
+        conditions.push(
           `EXISTS (
              SELECT 1 FROM sections sec
              JOIN classes cl ON cl.id = sec.class_id
-            WHERE sec.id = $${startIdx + 1} AND cl.school_id = $${startIdx + 2}
+            WHERE sec.id = $${next} AND cl.school_id = $${next + 1}
            )`,
-        ],
-        values: [schoolId, sectionId, schoolId],
-      };
+        );
+        values.push(sectionId, schoolId);
+        next += 2;
+      }
+
+      return { join: "", conditions, values, schoolParam };
     }
 
     async function queryIntegratedSparks(): Promise<ActivityListItem[]> {
@@ -185,9 +199,13 @@ export async function GET(request: NextRequest) {
       conditions.push(...school.conditions);
       values.push(...school.values);
 
+      const activitySort = school.schoolParam
+        ? schoolActivitySortSql(school.schoolParam, "a")
+        : "a.sort_order";
+
       const orderBy = q && rankIdx != null
-        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, c.chapter_code, a.sort_order, a.id`
-        : "c.chapter_code, a.sort_order, a.id";
+        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, c.chapter_code, ${activitySort}, a.id`
+        : `c.chapter_code, ${activitySort}, a.id`;
 
       const result = await client!.query(
         `SELECT a.id, a.slug, a.title, a.activity_type, a.enrichment_status,
@@ -298,9 +316,13 @@ export async function GET(request: NextRequest) {
       conditions.push(...school.conditions);
       values.push(...school.values);
 
+      const activitySort = school.schoolParam
+        ? schoolActivitySortSql(school.schoolParam, "a")
+        : "a.sort_order";
+
       const orderBy = q && rankIdx != null
-        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, a.sort_order, a.id`
-        : "a.sort_order, a.id";
+        ? `${activityTopicRankSql("a", "c", rankIdx)} DESC, ${activitySort}, a.id`
+        : `${activitySort}, a.id`;
 
       const result = await client!.query(
         `SELECT a.id, a.slug, a.title, a.activity_type, a.enrichment_status,

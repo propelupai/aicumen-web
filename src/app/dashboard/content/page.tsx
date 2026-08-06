@@ -9,16 +9,17 @@ import {
   FolderTree,
   Loader2,
   RefreshCw,
+  SlidersHorizontal,
   Trash2,
   Upload,
-  XCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { CURRICULUM_DOC_KINDS } from "@/lib/curriculum-upload";
 import { CoachReviewPanel } from "@/components/coach-review-panel";
+import { SchoolCustomizePanel } from "@/components/school-customize-panel";
 
 type PlatformTab = "documents" | "catalog" | "review";
-type SchoolTab = "curation" | "tracks" | "progress";
+type PlatformAdminTab = "customize" | PlatformTab;
 
 type CurriculumDocument = {
   id: number;
@@ -65,16 +66,6 @@ type ActivityRow = {
 };
 
 type ReviewItem = ActivityRow;
-
-type SchoolActivity = {
-  id: number;
-  title: string;
-  chapter_code: string;
-  chapter_title: string;
-  grade: number;
-  subject_name: string;
-  is_enabled: boolean;
-};
 
 type TrackRow = {
   id: number;
@@ -162,33 +153,51 @@ export default function ContentStudioPage() {
         <p className="text-xs font-semibold tracking-widest text-teal-700 uppercase">
           Curriculum
         </p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Content Studio</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+          {isPlatformAdmin ? "Content Studio" : "Customize for our school"}
+        </h1>
         <p className="mt-2 text-sm text-slate-600">
           {isPlatformAdmin
-            ? "Upload curriculum materials, review new quests, and publish content for schools."
-            : "Choose which quests your school uses, assign content to sections, and track class progress."}
+            ? "Customize what teachers see at this school, or manage the global catalog (upload, review, publish)."
+            : "Choose which programs, subjects, modules, and quests your teachers see — and in what order. Changes apply only to this school."}
         </p>
+        {user?.school_name && (
+          <p className="mt-2 text-xs text-slate-500">
+            Editing settings for <span className="font-semibold text-slate-700">{user.school_name}</span>
+            .
+          </p>
+        )}
       </section>
 
-      {isPlatformAdmin ? <PlatformContentStudio /> : <SchoolContentStudio />}
+      {isPlatformAdmin ? <PlatformAdminContentStudio /> : <SchoolContentStudio />}
     </div>
   );
 }
 
-function PlatformContentStudio() {
-  const [tab, setTab] = useState<PlatformTab>("documents");
+/** Platform admin: school customize for the active school + global Content Studio. */
+function PlatformAdminContentStudio() {
+  const { user } = useAuth();
+  const [tab, setTab] = useState<PlatformAdminTab>("customize");
+  const hasSchool = !!user?.school_id;
 
   return (
     <>
       <TabNav
         tabs={[
+          { id: "customize", label: "School customize", icon: SlidersHorizontal },
           { id: "documents", label: "Documents", icon: FileUp },
           { id: "catalog", label: "Catalog", icon: FolderTree },
           { id: "review", label: "Pending review", icon: CheckCircle2 },
         ]}
         active={tab}
-        onChange={(id) => setTab(id as PlatformTab)}
+        onChange={(id) => setTab(id as PlatformAdminTab)}
       />
+      {tab === "customize" &&
+        (hasSchool ? (
+          <SchoolCustomizePanel />
+        ) : (
+          <NoActiveSchoolNotice action="customize curriculum" />
+        ))}
       {tab === "documents" && <DocumentsTab />}
       {tab === "catalog" && <CatalogTab />}
       {tab === "review" && <ReviewTab />}
@@ -196,25 +205,21 @@ function PlatformContentStudio() {
   );
 }
 
-function SchoolContentStudio() {
-  const [tab, setTab] = useState<SchoolTab>("curation");
-
+function NoActiveSchoolNotice({ action }: { action: string }) {
   return (
-    <>
-      <TabNav
-        tabs={[
-          { id: "curation", label: "Quest library", icon: BookOpen },
-          { id: "tracks", label: "Section content", icon: FolderTree },
-          { id: "progress", label: "Progress", icon: CheckCircle2 },
-        ]}
-        active={tab}
-        onChange={(id) => setTab(id as SchoolTab)}
-      />
-      {tab === "curation" && <SchoolCurationTab />}
-      {tab === "tracks" && <SectionTracksTab />}
-      {tab === "progress" && <SectionProgressTab />}
-    </>
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+      <BookOpen className="mx-auto h-10 w-10 text-amber-600" />
+      <h2 className="mt-4 text-lg font-semibold text-amber-950">No school selected</h2>
+      <p className="mt-2 text-sm text-amber-800">
+        Join or switch to a school to {action}. Settings always apply only to the school you are
+        viewing.
+      </p>
+    </div>
   );
+}
+
+function SchoolContentStudio() {
+  return <SchoolCustomizePanel />;
 }
 
 function TabNav({
@@ -882,105 +887,6 @@ function ReviewTab() {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function SchoolCurationTab() {
-  const queryClient = useQueryClient();
-  const [gradeFilter, setGradeFilter] = useState<string>("");
-
-  const url = gradeFilter ? `/api/school/content?grade=${gradeFilter}` : "/api/school/content";
-
-  const { data, isLoading } = useQuery<{
-    activities: SchoolActivity[];
-  }>({
-    queryKey: [url],
-    queryFn: async () => {
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load catalog");
-      return res.json();
-    },
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: async ({ id, is_enabled }: { id: number; is_enabled: boolean }) => {
-      const res = await fetch(`/api/school/content/${id}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_enabled }),
-      });
-      if (!res.ok) throw new Error("Update failed");
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [url] }),
-  });
-
-  const activities = data?.activities ?? [];
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-slate-700">Filter by grade</label>
-        <select
-          value={gradeFilter}
-          onChange={(e) => setGradeFilter(e.target.value)}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm"
-        >
-          <option value="">All grades</option>
-          {[3, 4, 5, 6, 7, 8].map((g) => (
-            <option key={g} value={g}>
-              Grade {g}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
-          </div>
-        ) : (
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              <tr>
-                <th className="px-5 py-3">Quest</th>
-                <th className="px-5 py-3">Chapter</th>
-                <th className="px-5 py-3">Enabled</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {activities.map((a) => (
-                <tr key={a.id} className="hover:bg-slate-50/80">
-                  <td className="px-5 py-3 font-medium text-slate-900">{a.title}</td>
-                  <td className="px-5 py-3 text-slate-600">
-                    {a.subject_name} · {a.chapter_code} (G{a.grade})
-                  </td>
-                  <td className="px-5 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleMutation.mutate({ id: a.id, is_enabled: !a.is_enabled })}
-                      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
-                        a.is_enabled
-                          ? "bg-teal-100 text-teal-800"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {a.is_enabled ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      ) : (
-                        <XCircle className="h-3.5 w-3.5" />
-                      )}
-                      {a.is_enabled ? "Enabled" : "Disabled"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 }

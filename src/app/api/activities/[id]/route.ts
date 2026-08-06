@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getAuthUser } from "@/lib/getAuthUser";
 import { apiErrorResponse } from "@/lib/api-error";
-import { assertTeacherAccount } from "@/lib/rbac";
+import { assertActiveSchool, assertTeacherAccount } from "@/lib/rbac";
 import {
   type ActivityDetail,
   type QuestionRow,
@@ -12,6 +12,7 @@ import {
   parseActivityMetadata,
 } from "@/lib/activities";
 import { activityMandatesJsonSql } from "@/lib/topic-search";
+import { schoolActivityVisibleSql } from "@/lib/school-overlays";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await getAuthUser(request);
     assertTeacherAccount(auth);
+    const schoolId = assertActiveSchool(auth);
 
     const { id } = await context.params;
     const activityId = parseInt(id, 10);
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     client = await pool.connect();
 
+    const visible = schoolActivityVisibleSql("$2", "a", "c", "s");
     const actResult = await client.query(
       `SELECT a.id, a.slug, a.title, a.activity_type, a.estimated_minutes,
               a.ct_skills, a.ai_concept, a.metadata,
@@ -54,12 +57,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
          FROM activities a
          JOIN chapters c ON c.id = a.chapter_id
          JOIN subjects s ON s.id = c.subject_id
-        WHERE a.id = $1 AND a.status = 'published'`,
-      [activityId],
+        WHERE a.id = $1 AND a.status = 'published'
+          AND ${visible}`,
+      [activityId, schoolId],
     );
 
     if (actResult.rows.length === 0) {
-      return NextResponse.json({ message: "Activity not found" }, { status: 404 });
+      return NextResponse.json(
+        { message: "Activity not found or disabled for your school" },
+        { status: 404 },
+      );
     }
 
     const row = actResult.rows[0];

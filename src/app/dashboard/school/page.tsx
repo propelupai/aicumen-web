@@ -9,11 +9,13 @@ import {
   Loader2,
   Pencil,
   Plus,
+  SlidersHorizontal,
   Star,
   Trash2,
   Users,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -218,6 +220,27 @@ export default function SchoolSetupPage() {
           </p>
         )}
       </section>
+
+      {isAdmin && (
+        <Link
+          href="/dashboard/content"
+          className="flex items-start gap-4 rounded-2xl border border-teal-200 bg-teal-50/40 p-5 shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-teal-700 ring-1 ring-teal-100">
+            <SlidersHorizontal className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-teal-950">
+              Customize curriculum for our school
+            </span>
+            <span className="mt-1 block text-sm text-teal-900/80">
+              Turn programs, subjects, modules, and quests on or off — and drag to reorder. Applies
+              to every teacher at this school.
+            </span>
+          </span>
+          <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-teal-700" />
+        </Link>
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Academic year</h2>

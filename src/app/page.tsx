@@ -149,7 +149,7 @@ export default function Home() {
                 <p className="mt-6 text-lg leading-8 text-slate-600">
                   AICUMEN helps schools meet the CBSE mandate with Socratic
                   computational thinking, layered into the lessons you already
-                  teach, in as little as five minutes at the end of class.
+                  teach, in as little as ten minutes at the end of class.
                 </p>
               </ScrollReveal>
 

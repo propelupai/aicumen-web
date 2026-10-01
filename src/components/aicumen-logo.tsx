@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useBrand } from "@/context/brand-context";
 
 type AicumenLogoProps = {
   href?: string;
@@ -7,6 +10,7 @@ type AicumenLogoProps = {
 };
 
 export function AicumenLogo({ href = "/dashboard/home", showBadge = true, compact = false }: AicumenLogoProps) {
+  const { name: brandName } = useBrand();
   const inner = (
     <div className="flex items-center gap-2.5">
       {showBadge && (
@@ -22,7 +26,7 @@ export function AicumenLogo({ href = "/dashboard/home", showBadge = true, compac
         <span
           className={`font-bold tracking-tight text-teal-800 ${compact ? "text-base" : "text-lg"}`}
         >
-          AICUMEN
+          {brandName}
         </span>
         <span className={`text-slate-400 ${compact ? "text-[10px]" : "text-xs"}`}>
           by PropelUpAI

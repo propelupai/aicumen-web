@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useBrand } from "@/context/brand-context";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleIcon } from "@/components/google-icon";
 
@@ -43,6 +44,7 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { signUpWithEmail, signInWithEmail, signIn, loading, user } = useAuth();
+  const { name: brandName } = useBrand();
 
   const [formData, setFormData] = useState<SignupFormData>({
     email: "",
@@ -180,7 +182,7 @@ export default function SignupPage() {
         <div className="mb-6 text-center">
           <span className="text-2xl font-bold">
             <span className="bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent">
-              AICUMEN
+              {brandName}
             </span>
           </span>
           <h1 className="mt-3 text-xl font-semibold text-slate-900">Create your account</h1>
@@ -223,7 +225,7 @@ export default function SignupPage() {
                 <p className="text-sm font-semibold text-teal-950">
                   You&apos;re joining {schoolLookup.name}
                   {schoolLookup.partner_label
-                    ? `, an AICUMEN ${schoolLookup.partner_label}.`
+                    ? `, an ${brandName} ${schoolLookup.partner_label}.`
                     : "."}
                 </p>
                 {schoolLookup.welcome_blurb ? (

@@ -9,6 +9,7 @@ import { useAuth } from "@/context/auth-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { hasDedicatedPoc, hasPartnerBadge } from "@/lib/school-partner";
 import { useToast } from "@/hooks/use-toast";
+import { useBrand } from "@/context/brand-context";
 
 const BADGE_IMAGE = "/badges/founding-partner-2026.png";
 
@@ -24,6 +25,7 @@ export function PartnerBadge({
   className?: string;
 }) {
   const { user } = useAuth();
+  const { name: brandName } = useBrand();
   if (!user || !hasPartnerBadge(user)) return null;
 
   if (variant === "seal") {
@@ -47,7 +49,7 @@ export function PartnerBadge({
       </span>
       <p className="min-w-0 truncate text-sm font-semibold text-white">{user.partner_label}</p>
       <p className="ml-auto hidden shrink-0 text-xs font-semibold tracking-wider text-amber-300 uppercase sm:block">
-        AICUMEN Partner Program
+        {brandName} Partner Program
       </p>
     </div>
   );
@@ -68,6 +70,7 @@ export function FeedbackDialog({
 }) {
   const pathname = usePathname();
   const { toast } = useToast();
+  const { name: brandName } = useBrand();
   const [message, setMessage] = useState("");
   const [mounted, setMounted] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -115,7 +118,7 @@ export function FeedbackDialog({
     onSuccess: () => {
       toast({
         title: "Feedback saved",
-        description: "Thanks! Your note is stored with the AICUMEN team. Send another anytime.",
+        description: `Thanks! Your note is stored with the ${brandName} team. Send another anytime.`,
       });
       setMessage("");
       onClose();
@@ -148,7 +151,7 @@ export function FeedbackDialog({
                 Share feedback
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Tell us what would help your teachers. We store every note for the AICUMEN team.
+                Tell us what would help your teachers. We store every note for the {brandName} team.
               </p>
             </div>
             <button
@@ -197,6 +200,7 @@ export function FeedbackDialog({
 /** Gusto-style dedicated advisor control for schools with PoC fields set. */
 export function DedicatedAdvisorButton() {
   const { user } = useAuth();
+  const { name: brandName } = useBrand();
   const [open, setOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const panelId = useId();
@@ -230,8 +234,8 @@ export function DedicatedAdvisorButton() {
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label="Your AICUMEN contact"
-          title="Your AICUMEN contact"
+          aria-label={`Your ${brandName} contact`}
+          title={`Your ${brandName} contact`}
           onClick={() => setOpen((v) => !v)}
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
             open

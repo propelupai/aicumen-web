@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/auth-context";
+import { useBrand } from "@/context/brand-context";
 import { QuestCard } from "@/components/quest-card";
 import { CompletedWorkPanel } from "@/components/completed-work-panel";
 import { firstName, getTimeGreeting } from "@/lib/quest-preview";
@@ -91,6 +92,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function DashboardHome() {
   const { user } = useAuth();
+  const { id: brandId } = useBrand();
   const router = useRouter();
   const displayName = user?.display_name || user?.firebaseUser.email?.split("@")[0] || "there";
   const greeting = getTimeGreeting();
@@ -499,7 +501,11 @@ export default function DashboardHome() {
           <div className="space-y-4">
             <div>
               <span className="text-xs font-semibold text-slate-600">
-                {activeTrack === "ai" ? "AI Literacy" : "Lesson subject (CBSE)"}
+                {activeTrack === "ai"
+                  ? "AI Literacy"
+                  : brandId === "aingel"
+                    ? "Lesson subject"
+                    : "Lesson subject (CBSE)"}
               </span>
               {subjectsLoading ? (
                 <div className="mt-2 flex justify-center py-4">

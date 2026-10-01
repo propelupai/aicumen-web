@@ -1,5 +1,8 @@
+"use client";
+
 import { ShieldCheck } from "lucide-react";
 import type { ActivityAccent, ActivityListItem } from "@/lib/activities";
+import { useBrand } from "@/context/brand-context";
 
 const accentMap: Record<
   ActivityAccent,
@@ -63,6 +66,7 @@ export function QuestCard({
   const isCompleted = progressStatus === "completed" || !!completedAt;
   const buttonLabel = runLabel ?? (disabled ? "Soon" : "Run live →");
 
+  const { showCbse } = useBrand();
   const mandates = activity.mandates ?? [];
   const mandateCodes = mandates.map((m) => m.code);
   const shownCodes = mandateCodes.slice(0, 3);
@@ -117,7 +121,7 @@ export function QuestCard({
             title={mandateTooltip}
           >
             <ShieldCheck className="h-3 w-3" />
-            CBSE {shownCodes.join(", ")}
+            {showCbse ? `CBSE ${shownCodes.join(", ")}` : shownCodes.join(", ")}
             {extraCount > 0 ? ` +${extraCount}` : ""}
           </p>
         )}

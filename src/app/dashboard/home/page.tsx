@@ -92,7 +92,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export default function DashboardHome() {
   const { user } = useAuth();
-  const { id: brandId } = useBrand();
+  const { showCbse } = useBrand();
   const router = useRouter();
   const displayName = user?.display_name || user?.firebaseUser.email?.split("@")[0] || "there";
   const greeting = getTimeGreeting();
@@ -503,9 +503,9 @@ export default function DashboardHome() {
               <span className="text-xs font-semibold text-slate-600">
                 {activeTrack === "ai"
                   ? "AI Literacy"
-                  : brandId === "aingel"
-                    ? "Lesson subject"
-                    : "Lesson subject (CBSE)"}
+                  : showCbse
+                    ? "Lesson subject (CBSE)"
+                    : "Lesson subject"}
               </span>
               {subjectsLoading ? (
                 <div className="mt-2 flex justify-center py-4">
@@ -627,7 +627,8 @@ export default function DashboardHome() {
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
                 <ShieldCheck className="h-3.5 w-3.5 text-teal-700" />
-                CBSE handbook mandate{grade ? ` · Grade ${grade}` : ""}
+                {showCbse ? "CBSE handbook mandate" : "Skill focus"}
+                {grade ? ` · Grade ${grade}` : ""}
               </span>
               {mandateCode && (
                 <button

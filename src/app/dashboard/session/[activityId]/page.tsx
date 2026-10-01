@@ -27,6 +27,7 @@ import {
   type SessionPresentState,
 } from "@/lib/session-broadcast";
 import { useActiveSession } from "@/context/active-session-context";
+import { useBrand } from "@/context/brand-context";
 import { JournalRosterEditor } from "@/components/journal-roster-editor";
 
 type SessionPhase = "stem" | "coach" | "extend" | "done";
@@ -53,6 +54,7 @@ export default function LiveSessionPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { activeSession, hydrated, startSession, endSession } = useActiveSession();
+  const { showCbse } = useBrand();
   const activityId = parseInt(String(params.activityId ?? ""), 10);
 
   const initialSectionId = searchParams.get("sectionId");
@@ -604,7 +606,7 @@ export default function LiveSessionPage() {
             <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
                 <ShieldCheck className="h-3.5 w-3.5 text-teal-700" />
-                CBSE handbook mandate
+                {showCbse ? "CBSE handbook mandate" : "Skill focus"}
               </p>
               <ul className="mt-2 space-y-1.5">
                 {activity.mandates!.map((m) => (

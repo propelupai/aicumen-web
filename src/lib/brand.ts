@@ -6,12 +6,15 @@ export type Brand = {
   name: string;
   metaTitle: string;
   metaDescription: string;
+  /** When false, hide CBSE wording from the UI (AIngel / non-CBSE pitch). */
+  showCbse: boolean;
 };
 
 export const BRANDS: Record<BrandId, Brand> = {
   aicumen: {
     id: "aicumen",
     name: "AICUMEN",
+    showCbse: true,
     metaTitle: "AICUMEN — Socratic Computational Thinking for Schools",
     metaDescription:
       "AICUMEN helps CBSE schools meet the Computational Thinking mandate with teacher-first Socratic prompts — layered into the lessons you already teach.",
@@ -19,6 +22,7 @@ export const BRANDS: Record<BrandId, Brand> = {
   aingel: {
     id: "aingel",
     name: "AIngel",
+    showCbse: false,
     metaTitle: "AIngel — Socratic Computational Thinking for Schools",
     metaDescription:
       "AIngel helps schools build computational thinking with teacher-first Socratic prompts — layered into the lessons you already teach.",

@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { useBrand } from "@/context/brand-context";
 import { UserAvatar } from "@/components/user-avatar";
 import { LevelDistribution } from "@/components/journal-roster-editor";
 import {
@@ -46,6 +47,7 @@ const RANK_TO_LEVEL: Record<number, JournalLevel | null> = {
 
 /** Read-only student progress panel: overall ladder, by-subject, mandate mastery, and timeline. */
 export function StudentJournalView({ data }: { data: StudentJournal }) {
+  const { showCbse } = useBrand();
   const name = data.student.display_name?.trim() || data.student.email;
   const o = data.overall;
   const assessedTotal = o.assessed || 0;
@@ -100,7 +102,9 @@ export function StudentJournalView({ data }: { data: StudentJournal }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-teal-700" />
-            <h3 className="text-sm font-semibold text-slate-900">CBSE mandate mastery</h3>
+            <h3 className="text-sm font-semibold text-slate-900">
+              {showCbse ? "CBSE mandate mastery" : "Skill mastery"}
+            </h3>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             {data.mandates.map((m) => {

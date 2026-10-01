@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result.rows, { status: 200 });
   } catch (err: unknown) {
-    return apiErrorResponse(err, "Error fetching CBSE mandates");
+    return apiErrorResponse(err, "Error fetching handbook skills");
   } finally {
     if (client) client.release();
   }

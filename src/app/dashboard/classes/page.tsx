@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Loader2, Search, Star, Users } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useBrand } from "@/context/brand-context";
 
 type TeacherSection = {
   id: number;
@@ -22,6 +23,7 @@ type TeacherSectionsResponse = {
 
 export default function ClassesPage() {
   const { user } = useAuth();
+  const { showCbse } = useBrand();
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState<number | null>(null);
 
@@ -72,8 +74,8 @@ export default function ClassesPage() {
         <p className="text-xs font-semibold tracking-widest text-teal-700 uppercase">Classes</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Your class sections</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-600">
-          Open a section to see its roster and each student&apos;s progress across quests, subjects,
-          and CBSE mandates.
+          Open a section to see its roster and each student&apos;s progress across quests
+          {showCbse ? ", subjects, and CBSE mandates." : " and subjects."}
           {data?.source === "school" && (
             <span className="text-slate-400"> Showing all school sections (no assignments yet).</span>
           )}

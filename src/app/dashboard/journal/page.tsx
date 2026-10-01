@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useBrand } from "@/context/brand-context";
 import {
   JournalRosterEditor,
   LevelDistribution,
@@ -38,6 +39,7 @@ type JournalTab = "mark" | "class" | "student";
 
 export default function JournalPage() {
   const { user } = useAuth();
+  const { showCbse } = useBrand();
   const searchParams = useSearchParams();
   const initialSectionId = (() => {
     const v = parseInt(searchParams.get("section_id") ?? "", 10);
@@ -88,7 +90,7 @@ export default function JournalPage() {
         <p className="mt-2 max-w-2xl text-sm text-slate-600">
           Mark each student on the mastery ladder — <strong>Got answer → Got rule → Able to
           teach</strong> — for the quests you run. Then see how the class and each student are
-          progressing across subjects and CBSE mandates.
+          progressing across subjects{showCbse ? " and CBSE mandates" : ""}.
         </p>
         <LevelLegend className="mt-4" />
       </section>
@@ -445,6 +447,7 @@ type ClassSummary = {
 };
 
 function ClassInsightsTab({ sectionId }: { sectionId: number }) {
+  const { showCbse } = useBrand();
   const { data, isLoading } = useQuery<ClassSummary>({
     queryKey: ["/api/sections/journal-summary", sectionId],
     queryFn: async () => {
@@ -518,7 +521,9 @@ function ClassInsightsTab({ sectionId }: { sectionId: number }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-teal-700" />
-            <h2 className="text-sm font-semibold text-slate-900">CBSE mandate coverage</h2>
+            <h2 className="text-sm font-semibold text-slate-900">
+              {showCbse ? "CBSE mandate coverage" : "Skill coverage"}
+            </h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Each student&apos;s best level across activities tagged to the mandate.

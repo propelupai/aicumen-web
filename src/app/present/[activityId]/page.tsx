@@ -6,11 +6,13 @@ import {
   type SessionPresentState,
   subscribePresentState,
 } from "@/lib/session-broadcast";
+import { useBrand } from "@/context/brand-context";
 
 function PresentContent() {
   const searchParams = useSearchParams();
   const channelId = searchParams.get("channel") ?? "";
   const [state, setState] = useState<SessionPresentState | null>(null);
+  const { name: brandName } = useBrand();
 
   useEffect(() => {
     if (!channelId) return;
@@ -50,7 +52,7 @@ function PresentContent() {
           </span>
           <div>
             <p className="text-sm font-semibold tracking-widest text-teal-400 uppercase">
-              AICUMEN · {state.questCode}
+              {brandName} · {state.questCode}
             </p>
             <h1 className="mt-1 text-2xl font-bold sm:text-4xl">{state.title}</h1>
             <p className="mt-1 text-base text-slate-400 sm:text-lg">{state.subjectLine}</p>

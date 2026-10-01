@@ -8,102 +8,140 @@ import {
   Footprints,
 } from "lucide-react";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { resolveBrand } from "@/lib/resolve-brand";
+import type { Brand } from "@/lib/brand";
 
-const features = [
-  {
-    title: "AI Socratic Prompt Coach",
-    description:
-      "Ordered prompts guide you step by step: what to ask, when to push, and what never to say aloud.",
-    icon: MessageSquare,
-  },
-  {
-    title: "Observation Journal",
-    description:
-      "Log whether each student found the answer, the rule, or can teach it. Your CBSE assessment record.",
-    icon: ClipboardList,
-  },
-  {
-    title: "Facilitator Certification",
-    description:
-      "Train mentors in the Socratic method: never give answers, climb the question ladder, read misconceptions.",
-    icon: GraduationCap,
-  },
-  {
-    title: "Multi-modal & unplugged",
-    description:
-      "Run problems on paper, hop a number line, draw rangoli, or act it out. No devices required in class.",
-    icon: Footprints,
-  },
-  {
-    title: "Four subject packs",
-    description:
-      "Maths, English, Science, and Social Studies, each mapped to CBSE chapters and CT skills.",
-    icon: BookOpen,
-  },
-  {
-    title: "Skill-gated progression",
-    description:
-      "Levels, tiers, and badges that motivate students while keeping pace with demonstrated thinking.",
-    icon: Layers,
-  },
-];
+function landingCopy(brand: Brand) {
+  const name = brand.name;
+  const general = brand.id === "aingel";
 
-const whyNow = [
-  {
-    stat: "Mandatory",
-    label:
-      "CBSE made Computational Thinking a required subject for Classes 3–8 from 2026–27.",
-    accent: "border-teal-600",
-  },
-  {
-    stat: "50 hrs/yr",
-    label:
-      "Schools must deliver CT hours every year, but the timetable is already full.",
-    accent: "border-sky-600",
-  },
-  {
-    stat: "5–15 min",
-    label:
-      "AICUMEN fits inside the lesson you already teach. No extra period required.",
-    accent: "border-amber-500",
-  },
-];
+  return {
+    heroEyebrow: general
+      ? "Socratic Computational Thinking · For every classroom"
+      : "CBSE Computational Thinking · Classes 3–8 · 2026–27",
+    heroBody: general
+      ? `${name} helps schools build computational thinking with Socratic prompts, layered into the lessons you already teach, in as little as ten minutes at the end of class.`
+      : `${name} helps schools meet the CBSE mandate with Socratic computational thinking, layered into the lessons you already teach, in as little as ten minutes at the end of class.`,
+    whyNow: general
+      ? [
+          {
+            stat: "Any board",
+            label:
+              "Layer computational thinking into the subjects you already teach — no board-specific rollout required.",
+            accent: "border-teal-600",
+          },
+          {
+            stat: "No extra period",
+            label:
+              "The timetable is already full. Build thinking skills inside the lesson, not as a separate course.",
+            accent: "border-sky-600",
+          },
+          {
+            stat: "5–15 min",
+            label: `${name} fits inside the lesson you already teach. No extra period required.`,
+            accent: "border-amber-500",
+          },
+        ]
+      : [
+          {
+            stat: "Mandatory",
+            label:
+              "CBSE made Computational Thinking a required subject for Classes 3–8 from 2026–27.",
+            accent: "border-teal-600",
+          },
+          {
+            stat: "50 hrs/yr",
+            label:
+              "Schools must deliver CT hours every year, but the timetable is already full.",
+            accent: "border-sky-600",
+          },
+          {
+            stat: "5–15 min",
+            label: `${name} fits inside the lesson you already teach. No extra period required.`,
+            accent: "border-amber-500",
+          },
+        ],
+    steps: [
+      {
+        step: "1",
+        title: "Teach your normal chapter",
+        description:
+          "Fractions, number lines, a Poorvi story, a science experiment: whatever is on today's plan.",
+        animation: "fade-right" as const,
+        delay: 0,
+      },
+      {
+        step: "2",
+        title: "Pick the matching topic",
+        description: `Open ${name}, select your subject and chapter. The right Socratic sparks load instantly.`,
+        animation: "fade-up" as const,
+        delay: 150,
+      },
+      {
+        step: "3",
+        title: "Run a Socratic spark",
+        description:
+          "The prompt coach feeds you the next question at exactly the right moment. Students construct the rule themselves.",
+        animation: "fade-left" as const,
+        delay: 300,
+      },
+    ],
+    features: [
+      {
+        title: "AI Socratic Prompt Coach",
+        description:
+          "Ordered prompts guide you step by step: what to ask, when to push, and what never to say aloud.",
+        icon: MessageSquare,
+      },
+      {
+        title: "Observation Journal",
+        description: general
+          ? "Log whether each student found the answer, the rule, or can teach it. A living record of how each student thinks."
+          : "Log whether each student found the answer, the rule, or can teach it. Your CBSE assessment record.",
+        icon: ClipboardList,
+      },
+      {
+        title: "Facilitator Certification",
+        description:
+          "Train mentors in the Socratic method: never give answers, climb the question ladder, read misconceptions.",
+        icon: GraduationCap,
+      },
+      {
+        title: "Multi-modal & unplugged",
+        description:
+          "Run problems on paper, hop a number line, draw rangoli, or act it out. No devices required in class.",
+        icon: Footprints,
+      },
+      {
+        title: "Four subject packs",
+        description: general
+          ? "Maths, English, Science, and Social Studies, each mapped to the chapters and thinking skills you already teach."
+          : "Maths, English, Science, and Social Studies, each mapped to CBSE chapters and CT skills.",
+        icon: BookOpen,
+      },
+      {
+        title: "Skill-gated progression",
+        description:
+          "Levels, tiers, and badges that motivate students while keeping pace with demonstrated thinking.",
+        icon: Layers,
+      },
+    ],
+    ctaTitle: general ? "Ready to ask better questions?" : "Ready to meet the mandate?",
+    ctaBody: `Join your school on ${name} and start running Socratic computational thinking sparks in your next lesson.`,
+  };
+}
 
-const steps = [
-  {
-    step: "1",
-    title: "Teach your normal chapter",
-    description:
-      "Fractions, number lines, a Poorvi story, a science experiment: whatever is on today's plan.",
-    animation: "fade-right" as const,
-    delay: 0,
-  },
-  {
-    step: "2",
-    title: "Pick the matching topic",
-    description:
-      "Open AICUMEN, select your subject and chapter. The right Socratic sparks load instantly.",
-    animation: "fade-up" as const,
-    delay: 150,
-  },
-  {
-    step: "3",
-    title: "Run a Socratic spark",
-    description:
-      "The prompt coach feeds you the next question at exactly the right moment. Students construct the rule themselves.",
-    animation: "fade-left" as const,
-    delay: 300,
-  },
-];
+export default async function Home() {
+  const brand = await resolveBrand();
+  const copy = landingCopy(brand);
 
-export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-white text-slate-900">
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold tracking-tight text-teal-800">
-              AICUMEN
+              {brand.name}
             </span>
             <span className="hidden text-xs text-slate-400 sm:inline">
               by PropelUpAI
@@ -134,7 +172,7 @@ export default function Home() {
             <div className="mx-auto max-w-3xl text-center">
               <ScrollReveal animation="fade-in" duration={900} once>
                 <p className="text-xs font-semibold tracking-widest text-teal-700 uppercase">
-                  CBSE Computational Thinking · Classes 3–8 · 2026–27
+                  {copy.heroEyebrow}
                 </p>
               </ScrollReveal>
 
@@ -147,9 +185,7 @@ export default function Home() {
 
               <ScrollReveal animation="fade-up" delay={240} duration={1000} once>
                 <p className="mt-6 text-lg leading-8 text-slate-600">
-                  AICUMEN helps schools meet the CBSE mandate with Socratic
-                  computational thinking, layered into the lessons you already
-                  teach, in as little as ten minutes at the end of class.
+                  {copy.heroBody}
                 </p>
               </ScrollReveal>
 
@@ -187,7 +223,7 @@ export default function Home() {
             </ScrollReveal>
 
             <div className="mt-10 grid items-stretch gap-6 sm:grid-cols-3">
-              {whyNow.map((item, i) => (
+              {copy.whyNow.map((item, i) => (
                 <ScrollReveal
                   key={item.stat}
                   animation="fade-up"
@@ -229,7 +265,7 @@ export default function Home() {
                 aria-hidden
                 className="absolute top-5 right-[16.67%] left-[16.67%] hidden h-px bg-slate-200 sm:block"
               />
-              {steps.map((item) => (
+              {copy.steps.map((item) => (
                 <li key={item.step} className="relative list-none">
                   <ScrollReveal
                     animation={item.animation}
@@ -353,7 +389,7 @@ export default function Home() {
             </ScrollReveal>
 
             <div className="mt-12 divide-y divide-slate-200 border-y border-slate-200 sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3">
-              {features.map((feature, i) => {
+              {copy.features.map((feature, i) => {
                 const Icon = feature.icon;
                 const animation =
                   i % 3 === 0
@@ -393,12 +429,12 @@ export default function Home() {
         <section className="bg-slate-900 py-16 sm:py-20">
           <ScrollReveal animation="fade-scale" duration={1100} className="mx-auto max-w-3xl px-6 text-center">
             <p className="text-xs font-semibold tracking-widest text-teal-400 uppercase">
-              The AICUMEN difference
+              The {brand.name} difference
             </p>
             <blockquote className="mt-5 text-2xl leading-snug font-semibold text-white sm:text-3xl">
               Most edtech hands students answers.{" "}
               <span className="text-teal-400">
-                AICUMEN hands teachers better questions.
+                {brand.name} hands teachers better questions.
               </span>
             </blockquote>
             <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-slate-400">
@@ -412,12 +448,9 @@ export default function Home() {
         <section className="border-b border-slate-200 py-16 sm:py-20">
           <ScrollReveal animation="fade-up" duration={900} className="mx-auto max-w-2xl px-6 text-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-              Ready to meet the mandate?
+              {copy.ctaTitle}
             </h2>
-            <p className="mt-4 text-slate-600">
-              Join your school on AICUMEN and start running Socratic
-              computational thinking sparks in your next lesson.
-            </p>
+            <p className="mt-4 text-slate-600">{copy.ctaBody}</p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/signup"
@@ -441,7 +474,7 @@ export default function Home() {
 
       <footer className="border-t border-slate-200 bg-slate-50 py-8 text-center">
         <p className="text-sm text-slate-600">
-          © {new Date().getFullYear()} AICUMEN · A product of PropelUpAI, Inc.
+          © {new Date().getFullYear()} {brand.name} · A product of PropelUpAI, Inc.
         </p>
         <p className="mt-1 text-xs text-slate-400">All rights reserved.</p>
       </footer>

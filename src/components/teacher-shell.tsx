@@ -26,6 +26,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { ActiveSessionBar } from "@/components/active-session-bar";
 import { DedicatedAdvisorButton, PartnerBadge } from "@/components/school-partner-chrome";
 import { formatUserRoleLabel } from "@/lib/user-profile";
+import { useBrand } from "@/context/brand-context";
 
 type NavItem = {
   href: string;
@@ -465,6 +466,7 @@ function UserMenu({
 export function TeacherShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, signOut, loading } = useAuth();
+  const { name: brandName } = useBrand();
 
   const { data: mySchools = [] } = useQuery<MySchool[]>({
     queryKey: ["/api/users/my-schools"],
@@ -499,7 +501,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
                 href="/dashboard/home"
                 className="inline-flex shrink-0 items-baseline gap-1.5 transition-opacity hover:opacity-90"
               >
-                <span className="text-lg font-bold tracking-tight text-teal-800">AICUMEN</span>
+                <span className="text-lg font-bold tracking-tight text-teal-800">{brandName}</span>
                 <span className="hidden text-xs text-slate-400 sm:inline">by PropelUpAI</span>
               </Link>
               {user.school_name && (
@@ -538,7 +540,7 @@ export function TeacherShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <footer className="relative z-10 border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
-        © {new Date().getFullYear()} AICUMEN · A product of PropelUpAI, Inc.
+        © {new Date().getFullYear()} {brandName} · A product of PropelUpAI, Inc.
       </footer>
 
       <ActiveSessionBar />

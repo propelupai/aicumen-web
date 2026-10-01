@@ -4,11 +4,13 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useBrand } from "@/context/brand-context";
 import { GoogleIcon } from "@/components/google-icon";
 
 export default function LoginPage() {
   const router = useRouter();
   const { signIn, signInWithEmail, sendPasswordReset, loading, user } = useAuth();
+  const { name: brandName } = useBrand();
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -74,7 +76,7 @@ export default function LoginPage() {
         <div className="mb-6 text-center">
           <span className="text-2xl font-bold">
             <span className="bg-gradient-to-r from-indigo-600 to-sky-500 bg-clip-text text-transparent">
-              AICUMEN
+              {brandName}
             </span>
           </span>
           <h1 className="mt-3 text-xl font-semibold text-slate-900">Sign in to your account</h1>
